@@ -697,6 +697,7 @@ function generateEDI() {
 
   // ── RENDER PREVIEW & ENABLE ACTIONS ───────────────────────
   renderPreview(lines);
+  document.getElementById('clearBtn').style.display    = '';
   document.getElementById('downloadBtn').style.display = '';
 
   // Switch to the EDI Preview tab automatically
@@ -762,6 +763,53 @@ function renderPreview(lines) {
 /* ============================================================
    COPY & DOWNLOAD ACTIONS
    ============================================================ */
+
+/**
+ * Resets the application to its initial state.
+ * Clears imported data, EDI output, stats, preview and upload message.
+ */
+function clearData() {
+  // Reset state variables
+  rawData   = [];
+  headers   = [];
+  columnMap = {};
+  ediOutput = '';
+
+  // Reset file input so the same file can be re-uploaded if needed
+  document.getElementById('fileInput').value = '';
+
+  // Clear upload message
+  document.getElementById('uploadMsg').innerHTML = '';
+
+  // Hide and clear the data table
+  document.getElementById('tableWrapper').style.display = 'none';
+  document.getElementById('tableWrapper').innerHTML     = '';
+  document.getElementById('noDataMsg').style.display    = '';
+
+  // Hide and clear the EDI preview
+  document.getElementById('previewOutput').style.display = 'none';
+  document.getElementById('previewOutput').innerHTML     = '';
+  document.getElementById('noPreviewMsg').style.display  = '';
+
+  // Hide the mapping panel
+  document.getElementById('mappingPanel').style.display = 'none';
+  document.getElementById('mappingGrid').innerHTML      = '';
+
+  // Collapse the mapping toggle in case it was open
+  document.getElementById('mappingToggle').classList.remove('open');
+  document.getElementById('mappingBody').classList.remove('open');
+
+  // Hide stats bar and action buttons
+  document.getElementById('statsRow').style.display    = 'none';
+  document.getElementById('clearBtn').style.display    = 'none';
+  document.getElementById('downloadBtn').style.display = 'none';
+
+  // Re-initialise the order seed display
+  initOrderSeed();
+
+  // Switch back to the Source Data tab
+  switchTab('data', document.querySelectorAll('.tab-btn')[0]);
+}
 
 /**
  * Triggers a browser download of the EDI file.
@@ -839,7 +887,7 @@ function showMessage(containerId, msg, type) {
    field so it is visible before the user clicks Generate.
    ============================================================ */
 
-(function initOrderSeed() {
+function initOrderSeed() {
   const n  = new Date();
   const yy = String(n.getFullYear()).slice(2);
   const mo = String(n.getMonth() + 1).padStart(2, '0');
@@ -847,4 +895,7 @@ function showMessage(containerId, msg, type) {
   const hh = String(n.getHours()).padStart(2, '0');
   const mi = String(n.getMinutes()).padStart(2, '0');
   document.getElementById('orderNumStart').value = `3${yy}${mo}${dd}${hh}${mi}`;
-}());
+}
+
+// Run on page load
+initOrderSeed();
