@@ -451,7 +451,7 @@ function generateEDI() {
 
   // ── Read UI settings ──────────────────────────────────────
   const fileId     = pad(document.getElementById('fileId').value, 9);
-  const senderCode = pad(document.getElementById('senderCode').value, 4);
+  const senderCode = pad(document.getElementById('senderCode').value, 5);
   const currency   = pad(document.getElementById('currency').value, 3);
   const payTerms   = document.getElementById('payTerms').value;
 
