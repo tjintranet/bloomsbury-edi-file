@@ -54,7 +54,7 @@ let ediOutput = '';
 
 /** @type {EdiField[]} */
 const EDI_FIELDS = [
-  { key: 'subscriptionNum', label: 'Subscription / Order Ref',  default: 'Subscription number '      },
+  { key: 'subscriptionNum', label: 'Subscription / Order Ref',  default: 'Order Ref'                  },
   { key: 'isbn',            label: 'ISBN / ISSN',               default: 'ISSN'                       },
   { key: 'title',           label: 'Title',                     default: 'Journal/ Issue Title'       },
   { key: 'quantity',        label: 'Quantity',                  default: 'Quantity'                   },
@@ -483,7 +483,7 @@ function generateEDI() {
   }
 
   // ── Read UI settings ──────────────────────────────────────
-  const senderCode = pad(document.getElementById('senderCode').value, 5);
+  const senderCode = pad(document.getElementById('senderCode').value, 4);
   const currency   = pad(document.getElementById('currency').value, 3);
   const payTerms   = document.getElementById('payTerms').value;
 
@@ -514,8 +514,8 @@ function generateEDI() {
   let lineCount   = 0;
 
   // ── FILE HEADER ────────────────────────────────────────────
-  // Format: $$HDR + senderCode(5) + 2 spaces + fileId(7) + 3 spaces + timestamp(14)
-  // Example: $$HDRBLOUK  0027816   20260224160055
+  // Format: $$HDR + senderCode(4) + 2 spaces + fileId(7) + 3 spaces + timestamp(14)
+  // Example: $$HDRBLOO  0027816   20260224160055
   lines.push(`$$HDR${senderCode}  ${fileIdStr}   ${ts}`);
 
 
