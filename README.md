@@ -1,6 +1,6 @@
 # BLOUK EDI Order File Generator
 
-A browser-based tool for Bloomsbury Publishing that converts journal/book subscription order data from Excel spreadsheets into the fixed-width EDI format required by the Taylor & Francis / BLOUK distribution system. The tool also generates XML metadata files from a separate Excel input and packages them as a downloadable ZIP archive.
+A browser-based tool for Bloomsbury Publishing that converts journal/book subscription order data from Excel spreadsheets into fixed-width EDI format. The tool also generates XML metadata files from a separate Excel input and packages them as a downloadable ZIP archive.
 
 ---
 
