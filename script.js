@@ -931,3 +931,237 @@ function initOrderSeed() {
 
 // Run on page load
 initOrderSeed();
+
+/* ============================================================
+   XML METADATA GENERATOR
+   Accepts a separate Excel file containing journal/book metadata
+   and generates one XML file per row, bundled as metadata.zip.
+
+   Expected columns (case-insensitive, flexible matching):
+     ISSN, Title, Trim Height, Trim Width, Spine Size,
+     Paper Type, Binding Style, Page Extent, Lamination
+
+   Output filename per XML: {ISSN}.xml
+   Bundle filename:         metadata.zip
+   ============================================================ */
+
+/** Rows loaded from the metadata Excel file. */
+let xmlRawData = [];
+
+/** Column headers from the metadata Excel file. */
+let xmlHeaders = [];
+
+/** Maps each metadata field key to a column index (-1 = unmapped). */
+let xmlColumnMap = {};
+
+/**
+ * Metadata field definitions.
+ * `aliases` lists alternative header names matched case-insensitively.
+ */
+const XML_FIELDS = [
+  { key: 'issn',         label: 'ISSN',          aliases: ['issn'] },
+  { key: 'title',        label: 'Title',          aliases: ['title'] },
+  { key: 'trimHeight',   label: 'Trim Height',    aliases: ['trim height', 'trimheight', 'height'] },
+  { key: 'trimWidth',    label: 'Trim Width',     aliases: ['trim width', 'trimwidth', 'width'] },
+  { key: 'spineSize',    label: 'Spine Size',     aliases: ['spine size', 'spinesize', 'spine'] },
+  { key: 'paperType',    label: 'Paper Type',     aliases: ['paper type', 'papertype', 'paper'] },
+  { key: 'bindingStyle', label: 'Binding Style',  aliases: ['binding style', 'bindingstyle', 'binding'] },
+  { key: 'pageExtent',   label: 'Page Extent',    aliases: ['page extent', 'pageextent', 'pages', 'extent'] },
+  { key: 'lamination',   label: 'Lamination',     aliases: ['lamination'] },
+];
+
+// ── Dropzone wiring ────────────────────────────────────────────────────────
+const xmlDropzone  = document.getElementById('xmlDropzone');
+const xmlFileInput = document.getElementById('xmlFileInput');
+
+xmlDropzone.addEventListener('click', () => xmlFileInput.click());
+
+xmlDropzone.addEventListener('dragover', e => {
+  e.preventDefault();
+  xmlDropzone.classList.add('drag-over');
+});
+
+xmlDropzone.addEventListener('dragleave', () => {
+  xmlDropzone.classList.remove('drag-over');
+});
+
+xmlDropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  xmlDropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) processXMLFile(e.dataTransfer.files[0]);
+});
+
+xmlFileInput.addEventListener('change', () => {
+  if (xmlFileInput.files[0]) processXMLFile(xmlFileInput.files[0]);
+});
+
+/**
+ * Parses the metadata Excel file and auto-maps columns.
+ * @param {File} file
+ */
+function processXMLFile(file) {
+  const reader = new FileReader();
+
+  reader.onload = e => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'binary' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+      if (data.length < 2) throw new Error('No data rows found in the file.');
+
+      xmlHeaders = data[0].map(h => String(h ?? ''));
+      xmlRawData = data.slice(1).filter(row => row.some(c => c !== null && c !== ''));
+
+      // Auto-map columns by alias matching (case-insensitive)
+      xmlColumnMap = {};
+      XML_FIELDS.forEach(field => {
+        const idx = xmlHeaders.findIndex(h => {
+          const norm = h.trim().toLowerCase();
+          return field.aliases.includes(norm);
+        });
+        xmlColumnMap[field.key] = idx;
+      });
+
+      showMessage(
+        'xmlUploadMsg',
+        `<i class="fa-solid fa-circle-check"></i> Loaded ${xmlRawData.length} row${xmlRawData.length !== 1 ? 's' : ''} from "${file.name}"`,
+        'success'
+      );
+
+    } catch (err) {
+      showMessage(
+        'xmlUploadMsg',
+        `<i class="fa-solid fa-circle-xmark"></i> Error: ${err.message}`,
+        'error'
+      );
+    }
+  };
+
+  reader.readAsBinaryString(file);
+}
+
+/**
+ * Retrieves a cell value from a metadata row by field key.
+ * @param {Array}  row
+ * @param {string} key
+ * @return {string}
+ */
+function getXMLCell(row, key) {
+  const idx = xmlColumnMap[key];
+  if (idx === undefined || idx < 0) return '';
+  const val = row[idx];
+  if (val === null || val === undefined) return '';
+  return String(val).trim();
+}
+
+/**
+ * Escapes a string for safe embedding in XML text content.
+ * @param {string} str
+ * @return {string}
+ */
+function xmlEscape(str) {
+  return str
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&apos;');
+}
+
+/**
+ * Builds an XML string for a single metadata row.
+ * @param {Array} row
+ * @return {{ xml: string, issn: string }}
+ */
+function buildXML(row) {
+  const issn         = getXMLCell(row, 'issn');
+  const title        = getXMLCell(row, 'title');
+  const trimHeight   = getXMLCell(row, 'trimHeight');
+  const trimWidth    = getXMLCell(row, 'trimWidth');
+  const spineSize    = getXMLCell(row, 'spineSize');
+  const paperType    = getXMLCell(row, 'paperType');
+  const bindingStyle = getXMLCell(row, 'bindingStyle');
+  const pageExtent   = getXMLCell(row, 'pageExtent');
+  const lamination   = getXMLCell(row, 'lamination');
+
+  const xml =
+`<?xml version="1.0" encoding="UTF-8"?>
+<book>
+    <basic_info>
+        <issn>${xmlEscape(issn)}</issn>
+        <title>${xmlEscape(title)}</title>
+    </basic_info>
+    <specifications>
+        <dimensions>
+            <trim_height>${xmlEscape(trimHeight)}</trim_height>
+            <trim_width>${xmlEscape(trimWidth)}</trim_width>
+            <spine_size>${xmlEscape(spineSize)}</spine_size>
+        </dimensions>
+        <materials>
+            <paper_type>${xmlEscape(paperType)}</paper_type>
+            <binding_style>${xmlEscape(bindingStyle)}</binding_style>
+            <lamination>${xmlEscape(lamination)}</lamination>
+        </materials>
+        <page_extent>${xmlEscape(pageExtent)}</page_extent>
+    </specifications>
+</book>`;
+
+  return { xml, issn };
+}
+
+/**
+ * Main entry point for the XML metadata feature.
+ * Generates one XML per row and packages them into metadata.zip.
+ */
+async function generateXMLMetadata() {
+  if (!xmlRawData.length) {
+    alert('Please upload a metadata Excel file first.');
+    return;
+  }
+
+  const btn = document.querySelector('[onclick="generateXMLMetadata()"]');
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Building ZIP…';
+  btn.disabled = true;
+
+  try {
+    const zip = new JSZip();
+    let count = 0;
+    const skipped = [];
+
+    xmlRawData.forEach((row, idx) => {
+      const { xml, issn } = buildXML(row);
+      if (!issn) {
+        skipped.push(idx + 1);
+        return;
+      }
+      // Sanitise ISSN for use as filename (digits only, no punctuation)
+      const issnSafe = issn.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      zip.file(`${issnSafe}.xml`, xml);
+      count++;
+    });
+
+    if (count === 0) {
+      throw new Error('No rows with a valid ISSN found — no XML files were generated.');
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'metadata.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    let msg = `<i class="fa-solid fa-circle-check"></i> Generated ${count} XML file${count !== 1 ? 's' : ''} → <strong>metadata.zip</strong>`;
+    if (skipped.length) msg += ` <span style="color:var(--warn)">(${skipped.length} row${skipped.length !== 1 ? 's' : ''} skipped — no ISSN)</span>`;
+    showMessage('xmlUploadMsg', msg, 'success');
+
+  } catch (err) {
+    showMessage('xmlUploadMsg', `<i class="fa-solid fa-circle-xmark"></i> Error: ${err.message}`, 'error');
+  } finally {
+    btn.innerHTML = origText;
+    btn.disabled  = false;
+  }
+}

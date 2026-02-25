@@ -642,3 +642,26 @@ select:focus {
 ::-webkit-scrollbar-track   { background: var(--bg); }
 ::-webkit-scrollbar-thumb   { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ============================================================
+   XML METADATA — additional styles
+   ============================================================ */
+
+/* Teal/green accent button for the XML generator action */
+.btn-xml {
+  background: linear-gradient(135deg, #00b894, #00e5c3);
+  color: #0a1a14;
+  border: none;
+  font-weight: 600;
+}
+
+.btn-xml:hover {
+  background: linear-gradient(135deg, #00cba7, #00f5d0);
+  box-shadow: 0 4px 20px rgba(0, 229, 195, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Warning colour token (used for skip notices in messages) */
+:root {
+  --warn: #f0a500;
+}

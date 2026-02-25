@@ -3,10 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BLOUK EDI Order File Generator — Bloomsbury</title>
+  <title>EDI Order File Generator — Bloomsbury</title>
 
   <!-- SheetJS: Excel/CSV parsing library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- JSZip: ZIP file creation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <!-- Font Awesome: icon library -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -28,7 +31,7 @@
         <i class="fa-solid fa-file-lines"></i>
       </div>
       <div>
-        <h1>BLOUK EDI Order File Generator</h1>
+        <h1>EDI Order File Generator</h1>
         <p>Bloomsbury Publishing — Fixed-Width EDI File Converter</p>
       </div>
     </div>
@@ -54,7 +57,7 @@
           <div class="dropzone-icon">
             <i class="fa-solid fa-file-excel"></i>
           </div>
-          <p>Drop your <strong>Excel file</strong> here<br>or click to browse</p>
+          <p>Drop your <strong>Order Excel file</strong> here<br>or click to browse</p>
         </div>
 
         <!-- Upload status message (success / error) injected here by JS -->
@@ -138,6 +141,25 @@
         </div>
       </div>
 
+      <!-- Panel: XML Metadata Generator -->
+      <div class="panel">
+        <div class="panel-title">Generate XML Metadata</div>
+
+        <div class="dropzone" id="xmlDropzone">
+          <input type="file" id="xmlFileInput" accept=".xlsx,.xls,.csv">
+          <div class="dropzone-icon">
+            <i class="fa-solid fa-file-code"></i>
+          </div>
+          <p>Drop your <strong>Metadata Excel file</strong> here<br>or click to browse</p>
+        </div>
+
+        <div id="xmlUploadMsg"></div>
+
+        <button class="btn btn-xml" style="width:100%;margin-top:14px" onclick="generateXMLMetadata()">
+          <i class="fa-solid fa-code"></i> Generate XML &amp; Download ZIP
+        </button>
+      </div>
+
     </aside>
 
     <!-- ─────────────────────────────────────────
@@ -158,7 +180,7 @@
             <i class="fa-solid fa-trash-can"></i> Clear Data
           </button>
           <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" style="display:none">
-            <i class="fa-solid fa-download"></i> Download .txt
+            <i class="fa-solid fa-download"></i> Download File
           </button>
         </div>
       </div>
