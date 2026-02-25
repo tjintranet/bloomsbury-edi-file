@@ -56,7 +56,7 @@ let ediOutput = '';
 const EDI_FIELDS = [
   { key: 'subscriptionNum', label: 'Subscription / Order Ref',  default: 'Subscription number '      },
   { key: 'isbn',            label: 'ISBN / ISSN',               default: 'ISSN'                       },
-  { key: 'title',           label: 'Title',                     default: 'Journal/ Issue  Title'      },
+  { key: 'title',           label: 'Title',                     default: 'Journal/ Issue Title'       },
   { key: 'quantity',        label: 'Quantity',                  default: 'Quantity'                   },
   { key: 'deliveryName',    label: 'Delivery Contact Name',     default: 'Delivery Name '             },
   { key: 'deliveryCompany', label: 'Delivery Company',          default: 'Delivery Company name'      },
@@ -169,8 +169,29 @@ function makeFileTimestamp(date) {
 }
 
 /**
+ * Converts a string to safe 7-bit ASCII for EDI output.
+ * Replaces common Unicode punctuation with ASCII equivalents,
+ * then strips any remaining non-ASCII characters.
+ * This prevents multi-byte UTF-8 sequences from inflating field lengths
+ * and corrupting fixed-width field alignment.
+ *
+ * @param  {string} str - Input string (may contain Unicode)
+ * @return {string}       ASCII-safe string
+ */
+function toAscii(str) {
+  return str
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")   // curly single quotes -> '
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')   // curly double quotes -> "
+    .replace(/[\u2013\u2014\u2015]/g,       '-')   // en-dash / em-dash   -> -
+    .replace(/\u2026/g,                    '...') // ellipsis            -> ...
+    .replace(/\u00A0/g,                     ' ')   // non-breaking space  -> space
+    .replace(/[^\x00-\x7F]/g,              '');    // strip anything else
+}
+
+/**
  * Retrieves and trims a cell value from a data row using an EDI field key.
  * Returns an empty string if the field is unmapped or the cell is null.
+ * All values are sanitised to 7-bit ASCII to preserve fixed-width field alignment.
  *
  * @param  {Array}  row - A single data row from rawData
  * @param  {string} key - EDI field key from EDI_FIELDS
@@ -181,7 +202,7 @@ function getCell(row, key) {
   if (idx === undefined || idx < 0) return '';
   const val = row[idx];
   if (val === null || val === undefined) return '';
-  return String(val).trim();
+  return toAscii(String(val).trim());
 }
 
 /**
@@ -344,6 +365,18 @@ function buildMappingUI() {
 }
 
 /**
+ * Toggles the File Settings panel open or closed.
+ * Called by the panel-title click handler in index.html.
+ */
+function toggleSettings() {
+  const toggle = document.getElementById('settingsToggle');
+  const body   = document.getElementById('settingsBody');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  toggle.classList.toggle('open', !isOpen);
+}
+
+/**
  * Toggles the Column Mapping panel open or closed.
  * Called by the panel-title click handler in index.html.
  */
@@ -450,7 +483,6 @@ function generateEDI() {
   }
 
   // ── Read UI settings ──────────────────────────────────────
-  const fileId     = pad(document.getElementById('fileId').value, 9);
   const senderCode = pad(document.getElementById('senderCode').value, 5);
   const currency   = pad(document.getElementById('currency').value, 3);
   const payTerms   = document.getElementById('payTerms').value;
@@ -470,8 +502,8 @@ function generateEDI() {
   // Reflect the computed seed in the read-only UI field
   document.getElementById('orderNumStart').value = orderStart;
 
-  // ── File ID string (7 chars, zero-padded) ──────────────────
-  const fileIdStr = pad(document.getElementById('fileId').value.trim(), 7);
+  // ── File ID string (7 chars, zero-padded left) ─────────────
+  const fileIdStr = padLeft(document.getElementById('fileId').value.trim(), 7);
 
   // Array that will hold all output lines
   const lines = [];
@@ -482,9 +514,9 @@ function generateEDI() {
   let lineCount   = 0;
 
   // ── FILE HEADER ────────────────────────────────────────────
-  // Format: $$HDR + senderCode(4) + 2 spaces + fileId(7) + 3 spaces + timestamp(14)
-  // Example: $$HDRBLOUK 0027816   20260224160055
-  lines.push(`$$HDR${senderCode.trim()}  ${fileIdStr}   ${ts}`);
+  // Format: $$HDR + senderCode(5) + 2 spaces + fileId(7) + 3 spaces + timestamp(14)
+  // Example: $$HDRBLOUK  0027816   20260224160055
+  lines.push(`$$HDR${senderCode}  ${fileIdStr}   ${ts}`);
 
 
   // ── GROUP ROWS INTO ORDERS ─────────────────────────────────
@@ -681,7 +713,7 @@ function generateEDI() {
   // The receiving system does NOT count $$HDR or $$EOF themselves.
   // Format: $$EOF + senderCode + 2 spaces + fileId + 3 spaces + timestamp + recordCount(7)
   const totalRecordsStr = padLeft(recordCount, 7);
-  lines.push(`$$EOF${senderCode.trim()}  ${fileIdStr}   ${ts}${totalRecordsStr}`);
+  lines.push(`$$EOF${senderCode}  ${fileIdStr}   ${ts}${totalRecordsStr}`);
 
 
   // ── ASSEMBLE OUTPUT ────────────────────────────────────────

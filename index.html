@@ -67,58 +67,64 @@
         </button>
       </div>
 
-      <!-- Panel: EDI file configuration settings -->
+      <!-- Panel: EDI file configuration settings (collapsible, closed by default) -->
       <div class="panel">
-        <div class="panel-title">File Settings</div>
-
-        <div class="field-row">
-          <div class="field-group">
-            <label>File ID / Batch Number</label>
-            <input type="text" id="fileId" value="0027816" maxlength="10" placeholder="0027816">
-          </div>
-          <div class="field-group">
-            <label>File Prefix</label>
-            <input type="text" id="filePrefix" value="PO" readonly class="input-readonly">
-          </div>
+        <div class="panel-title collapsible" id="settingsToggle" onclick="toggleSettings()">
+          File Settings
+          <i class="fa-solid fa-chevron-down toggle-icon"></i>
         </div>
+        <div class="collapsible-body" id="settingsBody">
 
-        <div class="field-row">
-          <div class="field-group">
-            <label>Sender Code</label>
-            <input type="text" id="senderCode" value="BLOUK" readonly class="input-readonly">
-          </div>
-          <div class="field-group">
-            <label>Currency</label>
-            <input type="text" id="currency" value="GBP" maxlength="3">
-          </div>
-        </div>
-
-        <div class="field-group">
-          <label>Payment Terms</label>
-          <select id="payTerms">
-            <option value="FCA">FCA — Free Carrier</option>
-            <option value="DAP">DAP — Delivered at Place</option>
-          </select>
-        </div>
-
-        <div class="field-row">
-          <!-- Order number seed: auto-generated at runtime, read-only display -->
-          <div class="field-group" style="grid-column: 1 / -1;">
-            <label>
-              Order Number Start
-              <span class="auto-label">
-                <i class="fa-solid fa-clock"></i> auto-generated at runtime
-              </span>
-            </label>
-            <input type="text" id="orderNumStart" value="" readonly class="input-readonly">
-            <div class="field-hint">
-              Format: <span class="mono-hint">3 + YYMMDDHHММ</span> — unique per minute, regenerated on each Generate click
+          <div class="field-row">
+            <div class="field-group">
+              <label>File ID / Batch Number</label>
+              <input type="text" id="fileId" value="0027816" maxlength="10" placeholder="0027816">
+            </div>
+            <div class="field-group">
+              <label>File Prefix</label>
+              <input type="text" id="filePrefix" value="PO" readonly class="input-readonly">
             </div>
           </div>
-          <div class="field-group">
-            <label>Default Qty</label>
-            <input type="number" id="defaultQty" value="1" min="1" max="9999">
+
+          <div class="field-row">
+            <div class="field-group">
+              <label>Sender Code</label>
+              <input type="text" id="senderCode" value="BLOUK" readonly class="input-readonly">
+            </div>
+            <div class="field-group">
+              <label>Currency</label>
+              <input type="text" id="currency" value="GBP" maxlength="3">
+            </div>
           </div>
+
+          <div class="field-group">
+            <label>Payment Terms</label>
+            <select id="payTerms">
+              <option value="FCA">FCA — Free Carrier</option>
+              <option value="DAP">DAP — Delivered at Place</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <!-- Order number seed: auto-generated at runtime, read-only display -->
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label>
+                Order Number Start
+                <span class="auto-label">
+                  <i class="fa-solid fa-clock"></i> auto-generated at runtime
+                </span>
+              </label>
+              <input type="text" id="orderNumStart" value="" readonly class="input-readonly">
+              <div class="field-hint">
+                Format: <span class="mono-hint">3 + YYMMDDHHММ</span> — unique per minute, regenerated on each Generate click
+              </div>
+            </div>
+            <div class="field-group">
+              <label>Default Qty</label>
+              <input type="number" id="defaultQty" value="1" min="1" max="9999">
+            </div>
+          </div>
+
         </div>
       </div>
 
