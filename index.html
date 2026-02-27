@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EDI Order File Generator — Bloomsbury</title>
+  <title>BLOUK EDI Order File Generator — Bloomsbury</title>
 
   <!-- SheetJS: Excel/CSV parsing library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -31,7 +31,7 @@
         <i class="fa-solid fa-file-lines"></i>
       </div>
       <div>
-        <h1>EDI Order File Generator</h1>
+        <h1>BLOUK EDI Order File Generator</h1>
         <p>Bloomsbury Publishing — Fixed-Width EDI File Converter</p>
       </div>
     </div>
@@ -150,13 +150,16 @@
           <div class="dropzone-icon">
             <i class="fa-solid fa-file-code"></i>
           </div>
-          <p>Drop your <strong>Metadata Excel file</strong> here<br>or click to browse</p>
+          <p>Drop your <strong>metadata Excel file</strong> here<br>or click to browse</p>
         </div>
 
         <div id="xmlUploadMsg"></div>
 
         <button class="btn btn-xml" style="width:100%;margin-top:14px" onclick="generateXMLMetadata()">
           <i class="fa-solid fa-code"></i> Generate XML &amp; Download ZIP
+        </button>
+        <button class="btn btn-secondary" style="width:100%;margin-top:8px" id="xmlClearBtn" onclick="clearXMLData()" style="display:none">
+          <i class="fa-solid fa-trash-can"></i> Clear
         </button>
       </div>
 
@@ -180,7 +183,7 @@
             <i class="fa-solid fa-trash-can"></i> Clear Data
           </button>
           <button class="btn btn-success" onclick="downloadFile()" id="downloadBtn" style="display:none">
-            <i class="fa-solid fa-download"></i> Download File
+            <i class="fa-solid fa-download"></i> Download .txt
           </button>
         </div>
       </div>

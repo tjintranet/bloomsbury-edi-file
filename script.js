@@ -1017,18 +1017,26 @@ function showMessage(containerId, msg, type) {
  */
 function showColumnError(containerId, err, templateFilename) {
   const rows = err.details.map(d => {
-    // Highlight the differing parts in each detail line
-    return `<li class="col-error-item">${d.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`;
+    const escaped = d.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<li class="col-error-item">${escaped}</li>`;
   }).join('');
+
+  const plural = err.details.length !== 1 ? 'issues' : 'issue';
 
   const html = `
     <div class="message error col-error-box" style="margin-top:10px">
-      <div class="col-error-header">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-        <strong>Column mismatch — file rejected</strong>
+      <div class="col-error-top">
+        <i class="fa-solid fa-triangle-exclamation col-error-icon"></i>
+        <div class="col-error-text">
+          <p class="col-error-title">Column mismatch — file rejected</p>
+          <p class="col-error-desc">${err.message}<br>Please use <strong>${templateFilename}</strong> as your template without renaming or reordering any columns.</p>
+        </div>
       </div>
-      <p class="col-error-desc">${err.message} Please use <strong>${templateFilename}</strong> as your template without changing any column names or their order.</p>
-      <ul class="col-error-list">${rows}</ul>
+      <div class="col-error-divider"></div>
+      <div class="col-error-list-wrap">
+        <div class="col-error-list-label">${err.details.length} ${plural} found</div>
+        <ul class="col-error-list">${rows}</ul>
+      </div>
     </div>`;
 
   document.getElementById(containerId).innerHTML = html;
@@ -1162,6 +1170,8 @@ function processXMLFile(file) {
         'success'
       );
 
+      document.getElementById('xmlClearBtn').style.display = '';
+
     } catch (err) {
       showMessage(
         'xmlUploadMsg',
@@ -1175,7 +1185,19 @@ function processXMLFile(file) {
 }
 
 /**
- * Retrieves a cell value from a metadata row by field key.
+ * Resets the XML metadata panel to its initial empty state.
+ */
+function clearXMLData() {
+  xmlRawData   = [];
+  xmlHeaders   = [];
+  xmlColumnMap = {};
+
+  document.getElementById('xmlFileInput').value = '';
+  document.getElementById('xmlUploadMsg').innerHTML = '';
+  document.getElementById('xmlClearBtn').style.display = 'none';
+}
+
+/**
  * @param {Array}  row
  * @param {string} key
  * @return {string}
