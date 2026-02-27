@@ -665,3 +665,97 @@ select:focus {
 :root {
   --warn: #f0a500;
 }
+
+/* ============================================================
+   COLUMN VALIDATION ERROR
+   Structured error display for template mismatch on upload.
+   Overrides the base .message flex layout to allow stacked
+   content (header → description → diff list).
+   ============================================================ */
+
+.col-error-box {
+  /* Override the base .message flex-row layout */
+  display:       block !important;
+  align-items:   unset !important;
+  padding:       0 !important;
+  overflow:      hidden;
+  border-radius: 8px;
+}
+
+.col-error-top {
+  display:     flex;
+  align-items: flex-start;
+  gap:         10px;
+  padding:     12px 14px 10px;
+}
+
+.col-error-icon {
+  font-size:  1.1rem;
+  color:      #ff6b6b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.col-error-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.col-error-title {
+  font-size:   0.85rem;
+  font-weight: 600;
+  color:       #ff6b6b;
+  margin:      0 0 5px 0;
+}
+
+.col-error-desc {
+  font-size:   0.78rem;
+  color:       var(--text-dim);
+  margin:      0;
+  line-height: 1.5;
+}
+
+.col-error-desc strong {
+  color: var(--text);
+}
+
+.col-error-divider {
+  height:     1px;
+  background: rgba(255, 107, 107, 0.2);
+  margin:     0 14px;
+}
+
+.col-error-list-wrap {
+  padding: 8px 14px 12px;
+}
+
+.col-error-list-label {
+  font-size:     0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color:         var(--text-dim);
+  margin-bottom: 5px;
+}
+
+.col-error-list {
+  margin:           0;
+  padding:          0;
+  list-style:       none;
+  display:          flex;
+  flex-direction:   column;
+  gap:              3px;
+  max-height:       180px;
+  overflow-y:       auto;
+}
+
+.col-error-item {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size:   0.71rem;
+  color:       #ffbbbb;
+  padding:     4px 8px;
+  background:  rgba(255, 107, 107, 0.07);
+  border-left: 2px solid rgba(255, 107, 107, 0.35);
+  border-radius: 2px;
+  line-height: 1.45;
+  word-break:  break-word;
+}

@@ -54,20 +54,105 @@ let ediOutput = '';
 
 /** @type {EdiField[]} */
 const EDI_FIELDS = [
-  { key: 'subscriptionNum', label: 'Subscription / Order Ref',  default: 'Order Ref'                  },
-  { key: 'isbn',            label: 'ISBN / ISSN',               default: 'ISSN'                       },
-  { key: 'title',           label: 'Title',                     default: 'Journal/ Issue Title'       },
+  { key: 'subscriptionNum', label: 'Order Ref',                 default: 'Order Ref'                  },
+  { key: 'isbn',            label: 'ISSN',                      default: 'ISSN'                       },
+  { key: 'title',           label: 'Journal/ Issue Title',      default: 'Journal/ Issue  Title'      },
+  { key: 'volumeNumber',    label: 'Volume Number',             default: 'Volume Number '             },
+  { key: 'volumePart',      label: 'Volume Part',               default: 'Volume Part'                },
+  { key: 'year',            label: 'Year',                      default: 'Year'                       },
   { key: 'quantity',        label: 'Quantity',                  default: 'Quantity'                   },
-  { key: 'deliveryName',    label: 'Delivery Contact Name',     default: 'Delivery Name '             },
-  { key: 'deliveryCompany', label: 'Delivery Company',          default: 'Delivery Company name'      },
-  { key: 'addr1',           label: 'Address Line 1',            default: 'Delivery address line 1'    },
-  { key: 'addr2',           label: 'Address Line 2',            default: 'Delivery address line 2'    },
-  { key: 'addr3',           label: 'Address Line 3',            default: 'Delivery address line 3'    },
-  { key: 'country',         label: 'Country Code',              default: 'Delivery Country'           },
-  { key: 'postcode',        label: 'Post Code',                 default: 'Post code'                  },
-  { key: 'phone',           label: 'Telephone',                 default: 'Telephone number '          },
-  { key: 'email',           label: 'Email',                     default: 'Email address'              },
+  { key: 'deliveryName',    label: 'Delivery Name',             default: 'Delivery Name '             },
+  { key: 'deliveryCompany', label: 'Delivery Company name',     default: 'Delivery Company name'      },
+  { key: 'addr1',           label: 'Delivery address line 1',   default: 'Delivery address line 1'    },
+  { key: 'addr2',           label: 'Delivery address line 2',   default: 'Delivery address line 2'    },
+  { key: 'addr3',           label: 'Delivery address line 3',   default: 'Delivery address line 3'    },
+  { key: 'country',         label: 'Delivery Country',          default: 'Delivery Country'           },
+  { key: 'postcode',        label: 'Post code',                 default: 'Post code'                  },
+  { key: 'phone',           label: 'Telephone number',          default: 'Telephone number '          },
+  { key: 'email',           label: 'Email address',             default: 'Email address'              },
 ];
+
+/**
+ * Canonical ordered column list for the Order Excel file.
+ * Exact strings as they appear in the template (including trailing spaces).
+ * Used to validate uploads — any deviation triggers an error.
+ */
+const ORDER_TEMPLATE_COLUMNS = [
+  'Order Ref',
+  'ISSN',
+  'Journal/ Issue  Title',
+  'Volume Number ',
+  'Volume Part',
+  'Year',
+  'Quantity',
+  'Delivery Name ',
+  'Delivery Company name',
+  'Delivery address line 1',
+  'Delivery address line 2',
+  'Delivery address line 3',
+  'Delivery Country',
+  'Post code',
+  'Telephone number ',
+  'Email address',
+];
+
+/**
+ * Canonical ordered column list for the Metadata Excel file.
+ * Exact strings as they appear in the template.
+ */
+const METADATA_TEMPLATE_COLUMNS = [
+  'ISSN',
+  'Title',
+  'Trim Height',
+  'Trim Width',
+  'Spine Size',
+  'Paper Type',
+  'Binding Style',
+  'Page Extent',
+  'Lamination',
+];
+
+/**
+ * Validates that an uploaded file's headers exactly match a canonical template.
+ * Checks column count, names, and order.
+ * Returns null on success, or an object { type, message, details } on failure.
+ *
+ * @param {string[]} actual    - Headers from the uploaded file
+ * @param {string[]} expected  - Canonical template column list
+ * @param {string}   fileLabel - Human-readable label for error messages
+ * @return {{ type: string, message: string, details: string[] } | null}
+ */
+function validateColumns(actual, expected, fileLabel) {
+  const errors = [];
+
+  // Check column count
+  if (actual.length !== expected.length) {
+    errors.push(
+      `Expected ${expected.length} column${expected.length !== 1 ? 's' : ''}, ` +
+      `found ${actual.length}.`
+    );
+  }
+
+  // Check each position
+  const maxLen = Math.max(actual.length, expected.length);
+  for (let i = 0; i < maxLen; i++) {
+    const act = actual[i] ?? '(missing)';
+    const exp = expected[i] ?? '(unexpected)';
+    if (act !== exp) {
+      errors.push(
+        `Column ${i + 1}: expected "${exp}" — got "${act}".`
+      );
+    }
+  }
+
+  if (errors.length === 0) return null;
+
+  return {
+    type: 'column_mismatch',
+    message: `The uploaded file does not match the ${fileLabel} template.`,
+    details: errors,
+  };
+}
 
 
 /* ============================================================
@@ -269,10 +354,21 @@ function processFile(file) {
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
-      if (data.length < 2) throw new Error('No data rows found in the file.');
+      if (data.length < 1) throw new Error('The file appears to be empty.');
 
       // First row = column headers; remaining rows = data
-      headers = data[0].map(h => String(h ?? ''));
+      const fileHeaders = data[0].map(h => String(h ?? ''));
+
+      // ── Strict column validation against the order template ──────────────
+      const validationError = validateColumns(fileHeaders, ORDER_TEMPLATE_COLUMNS, 'Order');
+      if (validationError) {
+        showColumnError('uploadMsg', validationError, 'order_file.xlsx');
+        return;
+      }
+
+      if (data.length < 2) throw new Error('No data rows found in the file.');
+
+      headers = fileHeaders;
       rawData = data.slice(1).filter(row => row.some(c => c !== null && c !== ''));
 
       showMessage(
@@ -912,6 +1008,32 @@ function showMessage(containerId, msg, type) {
   el.innerHTML = `<div class="message ${type}" style="margin-top:10px">${msg}</div>`;
 }
 
+/**
+ * Renders a structured column-mismatch error with a per-column diff table.
+ *
+ * @param {string} containerId       - ID of the target DOM element
+ * @param {{ message: string, details: string[] }} err - Validation error object
+ * @param {string} templateFilename  - Name of the expected template file
+ */
+function showColumnError(containerId, err, templateFilename) {
+  const rows = err.details.map(d => {
+    // Highlight the differing parts in each detail line
+    return `<li class="col-error-item">${d.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</li>`;
+  }).join('');
+
+  const html = `
+    <div class="message error col-error-box" style="margin-top:10px">
+      <div class="col-error-header">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <strong>Column mismatch — file rejected</strong>
+      </div>
+      <p class="col-error-desc">${err.message} Please use <strong>${templateFilename}</strong> as your template without changing any column names or their order.</p>
+      <ul class="col-error-list">${rows}</ul>
+    </div>`;
+
+  document.getElementById(containerId).innerHTML = html;
+}
+
 
 /* ============================================================
    INITIALISATION
@@ -1008,12 +1130,23 @@ function processXMLFile(file) {
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
+      if (data.length < 1) throw new Error('The file appears to be empty.');
+
+      const fileHeaders = data[0].map(h => String(h ?? ''));
+
+      // ── Strict column validation against the metadata template ───────────
+      const validationError = validateColumns(fileHeaders, METADATA_TEMPLATE_COLUMNS, 'Metadata');
+      if (validationError) {
+        showColumnError('xmlUploadMsg', validationError, 'metadata_template.xlsx');
+        return;
+      }
+
       if (data.length < 2) throw new Error('No data rows found in the file.');
 
-      xmlHeaders = data[0].map(h => String(h ?? ''));
+      xmlHeaders = fileHeaders;
       xmlRawData = data.slice(1).filter(row => row.some(c => c !== null && c !== ''));
 
-      // Auto-map columns by alias matching (case-insensitive)
+      // Columns are validated — map by position directly
       xmlColumnMap = {};
       XML_FIELDS.forEach(field => {
         const idx = xmlHeaders.findIndex(h => {
