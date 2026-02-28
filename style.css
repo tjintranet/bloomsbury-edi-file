@@ -759,3 +759,28 @@ select:focus {
   line-height: 1.45;
   word-break:  break-word;
 }
+
+/* Template download button — subtle, secondary-level action */
+.btn-template {
+  justify-content:  center;
+  background:       transparent;
+  color:            var(--text-dim);
+  border:           1px dashed var(--border);
+  font-size:        0.78rem;
+  font-weight:      400;
+  text-decoration:  none;
+  gap:              7px;
+  transition:       color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.btn-template:hover {
+  color:            var(--accent);
+  border-color:     var(--accent);
+  background:       rgba(74, 158, 255, 0.06);
+  transform:        none;
+  box-shadow:       none;
+}
+
+.btn-template i {
+  font-size: 0.85rem;
+}

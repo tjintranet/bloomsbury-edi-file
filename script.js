@@ -98,18 +98,12 @@ const ORDER_TEMPLATE_COLUMNS = [
 
 /**
  * Canonical ordered column list for the Metadata Excel file.
- * Exact strings as they appear in the template.
+ * Only three columns are required — all other values are derived.
  */
 const METADATA_TEMPLATE_COLUMNS = [
   'ISSN',
   'Title',
-  'Trim Height',
-  'Trim Width',
-  'Spine Size',
-  'Paper Type',
-  'Binding Style',
   'Page Extent',
-  'Lamination',
 ];
 
 /**
@@ -125,7 +119,6 @@ const METADATA_TEMPLATE_COLUMNS = [
 function validateColumns(actual, expected, fileLabel) {
   const errors = [];
 
-  // Check column count
   if (actual.length !== expected.length) {
     errors.push(
       `Expected ${expected.length} column${expected.length !== 1 ? 's' : ''}, ` +
@@ -133,15 +126,12 @@ function validateColumns(actual, expected, fileLabel) {
     );
   }
 
-  // Check each position
   const maxLen = Math.max(actual.length, expected.length);
   for (let i = 0; i < maxLen; i++) {
     const act = actual[i] ?? '(missing)';
     const exp = expected[i] ?? '(unexpected)';
     if (act !== exp) {
-      errors.push(
-        `Column ${i + 1}: expected "${exp}" — got "${act}".`
-      );
+      errors.push(`Column ${i + 1}: expected "${exp}" — got "${act}".`);
     }
   }
 
@@ -152,6 +142,26 @@ function validateColumns(actual, expected, fileLabel) {
     message: `The uploaded file does not match the ${fileLabel} template.`,
     details: errors,
   };
+}
+
+/**
+ * Validates all ISSN values in the metadata data rows.
+ * ISSNs must be exactly 13 digits with no spaces or hyphens.
+ *
+ * @param {Array[]} rows       - Data rows from the metadata spreadsheet
+ * @param {number}  issnColIdx - Column index of the ISSN field
+ * @return {{ rowNum: number, value: string }[]} Array of invalid ISSN entries
+ */
+function validateISSNs(rows, issnColIdx) {
+  const invalid = [];
+  rows.forEach((row, i) => {
+    const raw = String(row[issnColIdx] ?? '').trim();
+    // Must be exactly 13 digits, no spaces or hyphens
+    if (!/^\d{13}$/.test(raw)) {
+      invalid.push({ rowNum: i + 2, value: raw }); // +2 = 1-based + header row
+    }
+  });
+  return invalid;
 }
 
 
@@ -1085,19 +1095,13 @@ let xmlHeaders = [];
 let xmlColumnMap = {};
 
 /**
- * Metadata field definitions.
- * `aliases` lists alternative header names matched case-insensitively.
+ * Metadata field definitions — only the 3 source columns from the spreadsheet.
+ * All other XML values (dimensions, paper, binding, lamination, spine) are derived.
  */
 const XML_FIELDS = [
-  { key: 'issn',         label: 'ISSN',          aliases: ['issn'] },
-  { key: 'title',        label: 'Title',          aliases: ['title'] },
-  { key: 'trimHeight',   label: 'Trim Height',    aliases: ['trim height', 'trimheight', 'height'] },
-  { key: 'trimWidth',    label: 'Trim Width',     aliases: ['trim width', 'trimwidth', 'width'] },
-  { key: 'spineSize',    label: 'Spine Size',     aliases: ['spine size', 'spinesize', 'spine'] },
-  { key: 'paperType',    label: 'Paper Type',     aliases: ['paper type', 'papertype', 'paper'] },
-  { key: 'bindingStyle', label: 'Binding Style',  aliases: ['binding style', 'bindingstyle', 'binding'] },
-  { key: 'pageExtent',   label: 'Page Extent',    aliases: ['page extent', 'pageextent', 'pages', 'extent'] },
-  { key: 'lamination',   label: 'Lamination',     aliases: ['lamination'] },
+  { key: 'issn',       label: 'ISSN',        aliases: ['issn'] },
+  { key: 'title',      label: 'Title',       aliases: ['title'] },
+  { key: 'pageExtent', label: 'Page Extent', aliases: ['page extent', 'pageextent', 'pages', 'extent'] },
 ];
 
 // ── Dropzone wiring ────────────────────────────────────────────────────────
@@ -1164,6 +1168,25 @@ function processXMLFile(file) {
         xmlColumnMap[field.key] = idx;
       });
 
+      // ── ISSN validation ──────────────────────────────────────────────────
+      const issnIdx = xmlColumnMap['issn'];
+      const issnErrors = validateISSNs(xmlRawData, issnIdx);
+
+      if (issnErrors.length > 0) {
+        const details = issnErrors.map(e =>
+          `Row ${e.rowNum}: "${e.value}" — must be exactly 13 digits, no spaces or hyphens.`
+        );
+        showColumnError('xmlUploadMsg', {
+          message: `${issnErrors.length} invalid ISSN value${issnErrors.length !== 1 ? 's' : ''} found. All ISSNs must be exactly 13 digits with no spaces or hyphens.`,
+          details,
+        }, 'metadata_template.xlsx');
+        // Clear state — don't allow generation with bad ISSNs
+        xmlRawData   = [];
+        xmlHeaders   = [];
+        xmlColumnMap = {};
+        return;
+      }
+
       showMessage(
         'xmlUploadMsg',
         `<i class="fa-solid fa-circle-check"></i> Loaded ${xmlRawData.length} row${xmlRawData.length !== 1 ? 's' : ''} from "${file.name}"`,
@@ -1225,20 +1248,55 @@ function xmlEscape(str) {
 }
 
 /**
- * Builds an XML string for a single metadata row.
+ * Derives all fixed and calculated metadata values from a source row,
+ * then builds the XML string.
+ *
+ * Fixed values:
+ *   Trim Height   = 245
+ *   Trim Width    = 170
+ *   Binding Style = Limp
+ *   Lamination    = Matt
+ *
+ * Derived values (from Page Extent):
+ *   Paper Type  = Magno Matt 130 gsm  if extent ≤ 32
+ *               = Magno Matt 90 gsm   if extent ≥ 33
+ *
+ *   Spine Size  = (extent × gsm × volume) / 20000 + 0.65 (Limp addition)
+ *               where volume = 10 for both paper types
+ *               Result rounded to 2 decimal places.
+ *
  * @param {Array} row
  * @return {{ xml: string, issn: string }}
  */
 function buildXML(row) {
-  const issn         = getXMLCell(row, 'issn');
-  const title        = getXMLCell(row, 'title');
-  const trimHeight   = getXMLCell(row, 'trimHeight');
-  const trimWidth    = getXMLCell(row, 'trimWidth');
-  const spineSize    = getXMLCell(row, 'spineSize');
-  const paperType    = getXMLCell(row, 'paperType');
-  const bindingStyle = getXMLCell(row, 'bindingStyle');
-  const pageExtent   = getXMLCell(row, 'pageExtent');
-  const lamination   = getXMLCell(row, 'lamination');
+  const issn       = getXMLCell(row, 'issn');
+  const title      = getXMLCell(row, 'title');
+  const extentRaw  = getXMLCell(row, 'pageExtent');
+  const extent     = parseInt(extentRaw, 10) || 0;
+
+  // ── Fixed values ────────────────────────────────────────────────────────
+  const trimHeight   = '245';
+  const trimWidth    = '170';
+  const bindingStyle = 'Limp';
+  const lamination   = 'Matt';
+
+  // ── Paper type — based on page extent ───────────────────────────────────
+  const VOLUME             = 10;
+  const LIMP_ADDITION      = 0.65;
+  const SPINE_FACTOR       = 20000;
+
+  let paperType, gsm;
+  if (extent <= 32) {
+    paperType = 'Magno Matt 130 gsm';
+    gsm       = 130;
+  } else {
+    paperType = 'Magno Matt 90 gsm';
+    gsm       = 90;
+  }
+
+  // ── Spine size calculation ───────────────────────────────────────────────
+  // Formula: (pageExtent × gsm × volume) / 20000 + 0.65 (Limp addition)
+  const spineSize = Math.round((extent * gsm * VOLUME) / SPINE_FACTOR + LIMP_ADDITION);
 
   const xml =
 `<?xml version="1.0" encoding="UTF-8"?>
@@ -1249,16 +1307,16 @@ function buildXML(row) {
     </basic_info>
     <specifications>
         <dimensions>
-            <trim_height>${xmlEscape(trimHeight)}</trim_height>
-            <trim_width>${xmlEscape(trimWidth)}</trim_width>
-            <spine_size>${xmlEscape(spineSize)}</spine_size>
+            <trim_height>${trimHeight}</trim_height>
+            <trim_width>${trimWidth}</trim_width>
+            <spine_size>${spineSize}</spine_size>
         </dimensions>
         <materials>
             <paper_type>${xmlEscape(paperType)}</paper_type>
-            <binding_style>${xmlEscape(bindingStyle)}</binding_style>
-            <lamination>${xmlEscape(lamination)}</lamination>
+            <binding_style>${bindingStyle}</binding_style>
+            <lamination>${lamination}</lamination>
         </materials>
-        <page_extent>${xmlEscape(pageExtent)}</page_extent>
+        <page_extent>${extent}</page_extent>
     </specifications>
 </book>`;
 
@@ -1285,21 +1343,64 @@ async function generateXMLMetadata() {
     let count = 0;
     const skipped = [];
 
+    // Summary report lines
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const summaryLines = [
+      '═'.repeat(72),
+      '  BLOOMSBURY PUBLISHING — XML METADATA GENERATION SUMMARY',
+      '═'.repeat(72),
+      `  Generated : ${dateStr} at ${timeStr}`,
+      `  Source    : ${xmlRawData.length} row${xmlRawData.length !== 1 ? 's' : ''} processed`,
+      '─'.repeat(72),
+      '',
+    ];
+
     xmlRawData.forEach((row, idx) => {
       const { xml, issn } = buildXML(row);
       if (!issn) {
         skipped.push(idx + 1);
         return;
       }
-      // Sanitise ISSN for use as filename (digits only, no punctuation)
+
+      // Gather derived values for the summary
+      const title      = getXMLCell(row, 'title');
+      const extentRaw  = getXMLCell(row, 'pageExtent');
+      const extent     = parseInt(extentRaw, 10) || 0;
+      const paperType  = extent <= 32 ? 'Magno Matt 130 gsm' : 'Magno Matt 90 gsm';
+      const gsm        = extent <= 32 ? 130 : 90;
+      const spineSize  = Math.round((extent * gsm * 10) / 20000 + 0.65);
+
       const issnSafe = issn.replace(/[^a-zA-Z0-9_\-]/g, '_');
       zip.file(`${issnSafe}.xml`, xml);
       count++;
+
+      summaryLines.push(`  ${String(count).padStart(3, ' ')}. ISSN        : ${issn}`);
+      summaryLines.push(`       Title       : ${title}`);
+      summaryLines.push(`       Page Extent : ${extent}`);
+      summaryLines.push(`       Paper Type  : ${paperType}`);
+      summaryLines.push(`       Spine Size  : ${spineSize} mm`);
+      summaryLines.push(`       Trim Size   : 245 × 170 mm`);
+      summaryLines.push(`       Binding     : Limp  |  Lamination: Matt`);
+      summaryLines.push(`       File        : ${issnSafe}.xml`);
+      summaryLines.push('');
     });
 
     if (count === 0) {
       throw new Error('No rows with a valid ISSN found — no XML files were generated.');
     }
+
+    // Summary footer
+    summaryLines.push('─'.repeat(72));
+    summaryLines.push(`  Total XML files generated : ${count}`);
+    if (skipped.length) {
+      summaryLines.push(`  Rows skipped (no ISSN)    : ${skipped.join(', ')}`);
+    }
+    summaryLines.push('═'.repeat(72));
+
+    // Add summary to ZIP
+    zip.file('metadata_summary.txt', summaryLines.join('\r\n') + '\r\n');
 
     const blob = await zip.generateAsync({ type: 'blob' });
     const url  = URL.createObjectURL(blob);
@@ -1309,7 +1410,16 @@ async function generateXMLMetadata() {
     a.click();
     URL.revokeObjectURL(url);
 
-    let msg = `<i class="fa-solid fa-circle-check"></i> Generated ${count} XML file${count !== 1 ? 's' : ''} → <strong>metadata.zip</strong>`;
+    // Download summary as a separate text file
+    const summaryBlob = new Blob([summaryLines.join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' });
+    const summaryUrl  = URL.createObjectURL(summaryBlob);
+    const summaryA    = document.createElement('a');
+    summaryA.href     = summaryUrl;
+    summaryA.download = 'metadata_summary.txt';
+    summaryA.click();
+    URL.revokeObjectURL(summaryUrl);
+
+    let msg = `<i class="fa-solid fa-circle-check"></i> Generated ${count} XML file${count !== 1 ? 's' : ''} + summary → <strong>metadata.zip</strong>`;
     if (skipped.length) msg += ` <span style="color:var(--warn)">(${skipped.length} row${skipped.length !== 1 ? 's' : ''} skipped — no ISSN)</span>`;
     showMessage('xmlUploadMsg', msg, 'success');
 

@@ -1,44 +1,65 @@
 # BLOUK EDI Order File Generator
 
-A browser-based tool for Bloomsbury Publishing that converts journal/book subscription order data from Excel spreadsheets into fixed-width EDI format. The tool also generates XML metadata files from a separate Excel input and packages them as a downloadable ZIP archive.
+A browser-based tool for Bloomsbury Publishing that converts subscription order data from Excel into the fixed-width EDI format required by the Taylor & Francis / BLOUK distribution system, and separately generates XML metadata files from a streamlined three-column spreadsheet.
+
+No installation, server, or build tools required — the entire application runs in the browser from a single folder.
 
 ---
 
 ## Table of Contents
 
-1.  [Overview](#overview)
-2.  [File Structure](#file-structure)
-3.  [Quick Start](#quick-start)
-4.  [How to Use](#how-to-use)
-5.  [Excel Input Format — EDI Orders](#excel-input-format--edi-orders)
-6.  [EDI Output Format](#edi-output-format)
-7.  [Record Type Reference](#record-type-reference)
-8.  [Order Number Scheme](#order-number-scheme)
-9.  [Column Mapping](#column-mapping)
-10. [File Settings Reference](#file-settings-reference)
-11. [Output Filename Convention](#output-filename-convention)
-12. [XML Metadata Generator](#xml-metadata-generator)
-13. [Dependencies](#dependencies)
-14. [Browser Compatibility](#browser-compatibility)
-15. [Known Limitations](#known-limitations)
-16. [Development Notes](#development-notes)
+- [BLOUK EDI Order File Generator](#blouk-edi-order-file-generator)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [File Structure](#file-structure)
+  - [Quick Start](#quick-start)
+  - [EDI Order File Generator](#edi-order-file-generator)
+    - [How to Use](#how-to-use)
+    - [Order Template — Column Reference](#order-template--column-reference)
+    - [Row Grouping](#row-grouping)
+    - [File Settings Reference](#file-settings-reference)
+    - [Order Number Scheme](#order-number-scheme)
+    - [Column Mapping Panel](#column-mapping-panel)
+    - [EDI Output Format](#edi-output-format)
+    - [Record Type Reference](#record-type-reference)
+      - [$$HDR — File Header](#hdr--file-header)
+      - [H1 — Order Header (350 characters)](#h1--order-header-350-characters)
+      - [H2 — Customer / Address (358 characters)](#h2--customer--address-358-characters)
+      - [H3 — Payment Terms (20 characters)](#h3--payment-terms-20-characters)
+      - [D1 — Line Item (266 characters)](#d1--line-item-266-characters)
+      - [$$EOF — File Footer](#eof--file-footer)
+    - [Output Filename Convention](#output-filename-convention)
+  - [XML Metadata Generator](#xml-metadata-generator)
+    - [How to Use](#how-to-use-1)
+    - [Metadata Template — Column Reference](#metadata-template--column-reference)
+    - [ISSN Validation](#issn-validation)
+    - [Derived Values](#derived-values)
+    - [Spine Size Calculation](#spine-size-calculation)
+    - [XML Output Structure](#xml-output-structure)
+    - [Summary Report](#summary-report)
+  - [Column Validation](#column-validation)
+  - [Template Downloads](#template-downloads)
+  - [Dependencies](#dependencies)
+  - [Browser Compatibility](#browser-compatibility)
+  - [Development Notes](#development-notes)
+    - [EDI Field Positions](#edi-field-positions)
+    - [Adding a New EDI Column](#adding-a-new-edi-column)
+    - [Changing Fixed XML Metadata Values](#changing-fixed-xml-metadata-values)
+    - [Changing the Paper / Extent Threshold](#changing-the-paper--extent-threshold)
+    - [Changing the Spine Formula](#changing-the-spine-formula)
+    - [Changing the Carrier Code](#changing-the-carrier-code)
 
 ---
 
 ## Overview
 
-The tool accepts an `.xlsx`, `.xls` or `.csv` file containing subscription order rows and outputs a plain-text EDI file (`.txt`) in the BLOUK T1 fixed-width format. A separate panel accepts a metadata spreadsheet and outputs one XML file per row, bundled into `metadata.zip`. No server, backend, or installation is required — it runs entirely in the browser.
+The application provides two independent tools in a single interface:
 
-**Key features:**
+**EDI Order File Generator** — accepts a 16-column order spreadsheet and produces a plain-text fixed-width EDI file in the BLOUK T1 format, ready to submit to the Taylor & Francis / BLOUK distribution system.
 
--   Drag-and-drop or click-to-browse file upload
--   Automatic column mapping with manual override
--   Timestamp-based order number seeding to prevent duplicates across batches
--   Colour-coded EDI preview before download
--   File download action for the generated EDI `.txt`
--   ISO 2-letter → 3-letter country code conversion
--   ISSN/ISBN normalisation (strips hyphens, zero-pads to 13 digits)
--   XML metadata generation from a separate Excel file, downloaded as `metadata.zip`
+**XML Metadata Generator** — accepts a simplified 3-column spreadsheet (ISSN, Title, Page Extent) and produces one XML metadata file per row. All remaining specification values — trim size, binding, lamination, paper type, and spine width — are derived automatically from the page extent using defined business rules. The XML files are bundled into `metadata.zip`, and a plain-text summary report (`metadata_summary.txt`) is downloaded alongside it.
+
+Both tools enforce strict column validation on upload: if the uploaded file does not exactly match the expected template structure, the file is rejected before any data is processed and a detailed per-column error report is shown.
 
 ---
 
@@ -46,141 +67,162 @@ The tool accepts an `.xlsx`, `.xls` or `.csv` file containing subscription order
 
 ```
 blouk_edi/
-├── index.html   — Application markup (HTML only, no inline scripts or styles)
-├── style.css    — All visual styling and layout
-├── script.js    — All application logic
-└── README.md    — This document
+├── index.html               — Application markup
+├── style.css                — All visual styling and layout
+├── script.js                — All application logic
+├── order_file.xlsx          — Order upload template (download from app)
+├── metadata_template.xlsx   — Metadata upload template (download from app)
+└── README.md                — This document
 ```
 
-The application is intentionally split into three separate files for maintainability. All logic is in `script.js`; all presentation is in `style.css`; `index.html` contains only semantic structure.
+All logic is in `script.js`; all presentation is in `style.css`; `index.html` contains only semantic structure. The two `.xlsx` template files must remain in the same root directory as `index.html` for the in-app template download buttons to work.
 
 ---
 
 ## Quick Start
 
-1.  Copy the `blouk_edi/` folder to any location on your machine or web server.
-2.  Open `index.html` in a modern web browser (Chrome, Edge or Firefox recommended).
-3.  An internet connection is required on first load to fetch CDN libraries (SheetJS, JSZip, Font Awesome, Google Fonts). Subsequent use may work offline if the browser has cached those resources.
-
-> **No installation, Node.js, or build tools are required.**
+1. Copy the entire `blouk_edi/` folder to any location on your machine or a web server.
+2. Open `index.html` in a modern web browser (Chrome, Edge or Firefox recommended).
+3. An internet connection is required on first load to fetch CDN libraries. After that, the browser cache will serve them offline.
 
 ---
 
-## How to Use
+## EDI Order File Generator
 
-### EDI Order File
+### How to Use
 
-#### Step 1 — Upload your Order Excel file
+**Step 1 — Download the template (first time only)**
+Click **Download Order Template** in the Import Excel Data panel to save `order_file.xlsx`. Use this file as the basis for every upload — do not rename, reorder or add columns.
 
-Drag your spreadsheet onto the **Import Excel Data** upload zone, or click it to open the file picker. Accepted formats: `.xlsx`, `.xls`, `.csv`.
+**Step 2 — Populate the template**
+Fill in your subscription order rows below the header row. Each row represents one journal issue or subscription line. See [Order Template — Column Reference](#order-template--column-reference) for field details.
 
-On successful load, a green confirmation message shows the number of rows detected, and the **Source Data** tab populates with a preview table.
+**Step 3 — Upload the file**
+Drag `order_file.xlsx` onto the upload zone or click to browse. The app validates that the column structure exactly matches the template. If validation passes, a green confirmation shows the row count and the Source Data tab populates with a preview table.
 
-#### Step 2 — Review File Settings
+**Step 4 — Adjust File Settings (if required)**
+Expand the **File Settings** panel to review or update the batch configuration. The Order Number Start field is read-only and auto-populated — no action is needed.
 
-Adjust the settings in the **File Settings** panel if needed (see [File Settings Reference](#file-settings-reference)). The Order Number Start field is read-only and auto-populated from the current timestamp — no action is required.
+**Step 5 — Review Column Mapping (optional)**
+The **Column Mapping** panel shows how spreadsheet columns are mapped to EDI fields. Auto-mapping occurs on upload; expand the panel to override any mapping manually.
 
-#### Step 3 — Check Column Mapping (optional)
+**Step 6 — Generate**
+Click **Generate EDI File**. The app groups rows into orders, builds all EDI records, switches to the EDI Preview tab with colour-coded output, and enables the Download button.
 
-The **Column Mapping** panel is collapsed by default. Click the panel header to expand it. The tool attempts to auto-match your spreadsheet's column headers to the expected EDI field names. If your headers differ, use the dropdowns to manually assign each field.
-
-#### Step 4 — Generate
-
-Click **Generate EDI File**. The tool:
-
--   Computes a fresh timestamp-based order number seed
--   Groups rows into orders (see [Order Number Scheme](#order-number-scheme))
--   Builds all EDI records
--   Switches to the **EDI Preview** tab showing colour-coded output
--   Updates the stats bar with order, line item and record counts
--   Enables the **Download .txt** button
-
-#### Step 5 — Download
-
-Click **Download .txt** to save the file to your downloads folder using the standard filename convention.
+**Step 7 — Download**
+Click **Download .txt** to save the EDI file using the standard filename convention.
 
 ---
 
-### XML Metadata
+### Order Template — Column Reference
 
-#### Step 1 — Upload your metadata Excel file
+The order template contains 16 columns in a fixed order. All column names must be preserved exactly, including any trailing spaces.
 
-Drag your metadata spreadsheet onto the **Generate XML Metadata** upload zone, or click it to browse. Accepted formats: `.xlsx`, `.xls`, `.csv`.
+| # | Column Header | EDI Field | Notes |
+|---|---|---|---|
+| 1 | `Order Ref` | Order / item reference | Groups rows into a single order when shared with the same delivery name and company |
+| 2 | `ISSN` | ISBN / ISSN (D1) | Normalised to 13 digits in the EDI output |
+| 3 | `Journal/ Issue  Title` | Title | Not written to EDI; for reference only (note: two spaces after `/`) |
+| 4 | `Volume Number ` | — | Not written to EDI; for reference only (note: trailing space) |
+| 5 | `Volume Part` | — | Not written to EDI; for reference only |
+| 6 | `Year` | — | Not written to EDI; for reference only |
+| 7 | `Quantity` | D1 quantity | Falls back to Default Qty setting if blank or zero |
+| 8 | `Delivery Name ` | H2 contact name | Note: trailing space |
+| 9 | `Delivery Company name` | H2 city / company | |
+| 10 | `Delivery address line 1` | H2 address line 1 | |
+| 11 | `Delivery address line 2` | H2 address line 2 | |
+| 12 | `Delivery address line 3` | H2 address line 3 | |
+| 13 | `Delivery Country` | H2 country code | Accepts ISO 2-letter or 3-letter codes; auto-converted to alpha-3 |
+| 14 | `Post code` | H2 post code | |
+| 15 | `Telephone number ` | H2 telephone | Note: trailing space |
+| 16 | `Email address` | H2 email | |
 
-#### Step 2 — Generate and Download
-
-Click **Generate XML & Download ZIP**. The tool generates one XML file per row (named by ISSN) and downloads them bundled as `metadata.zip`. Rows without a valid ISSN are skipped, and a count of any skipped rows is shown in the status message.
+> **Important:** Several column headers contain trailing spaces or non-obvious punctuation (such as the double space in `Journal/ Issue  Title`). These are significant — they are part of the exact header string validated on upload. Always use `order_file.xlsx` as your starting point and do not modify the header row.
 
 ---
-
-## Excel Input Format — EDI Orders
-
-The tool expects one row per journal issue / subscription order. The first row must be a header row. Column order does not matter — the tool maps by header name.
-
-### Expected Column Headers
-
-| Column Header | EDI Field | Notes |
-|---|---|---|
-| `Order Ref` | Order / Item Ref | |
-| `ISSN` | ISBN/ISSN (D1) | Normalised to 13 digits |
-| `Journal/ Issue Title` | Title | Not written to EDI; for reference only |
-| `Quantity` | D1 quantity | Falls back to Default Qty setting if blank |
-| `Delivery Name ` | H2 customer name | Trailing space is significant for auto-match |
-| `Delivery Company name` | H2 city field | |
-| `Delivery address line 1` | H2 addr1 | |
-| `Delivery address line 2` | H2 addr2 | |
-| `Delivery address line 3` | H2 addr3 | |
-| `Delivery Country` | H2 country code | Accepts ISO 2-letter or 3-letter codes |
-| `Post code` | H2 postcode | |
-| `Telephone number ` | H2 phone | Trailing space is significant for auto-match |
-| `Email address` | H2 email | |
-
-> **Tip:** Column headers must match exactly (including trailing spaces) for auto-mapping to work. Use the Column Mapping panel to fix any mismatches.
 
 ### Row Grouping
 
-Rows that share the same **Order Ref**, **Delivery Company** and **Delivery Name** are automatically grouped into a single order with multiple D1 line items. Rows with no Order Ref are each treated as a separate single-line order.
+Rows that share the same **Order Ref**, **Delivery Company name** and **Delivery Name** are automatically grouped into a single order with multiple D1 line items. Each unique combination produces its own H1 / H2 / H3 block with sequential D1 records beneath it.
+
+Rows with no Order Ref value are each treated as a separate single-line order.
 
 ---
 
-## EDI Output Format
+### File Settings Reference
 
-The generated file is a fixed-width ASCII text file with CRLF (`\r\n`) line endings. All fields occupy exact character positions with no delimiters. Unused space within a field is padded with spaces (text fields) or zeros (numeric fields).
+The **File Settings** panel (collapsed by default) contains EDI batch configuration. Expand it by clicking the panel header.
 
-### File Structure
+| Setting | Default | Editable | Description |
+|---|---|---|---|
+| File ID / Batch Number | `0027816` | Yes | Written into `$$HDR` and `$$EOF` markers. Update per batch if required. |
+| File Prefix | `PO` | No | Used in the output filename only (e.g. `PO.0027816_...`). |
+| Sender Code | `BLOO` | No | 4-character code written to `$$HDR` and `$$EOF`. |
+| Currency | `GBP` | Yes | 3-character ISO currency code written to each H1 record. |
+| Payment Terms | `FCA` | Yes | Incoterms code written to each H3 record. `FCA` = Free Carrier; `DAP` = Delivered at Place. |
+| Order Number Start | Auto | No | Timestamp-derived 10-digit seed. Regenerated on each Generate click. |
+| Default Qty | `1` | Yes | Fallback quantity when the Quantity column is blank or zero. |
+
+---
+
+### Order Number Scheme
+
+Order numbers are derived from the date and time at the moment **Generate EDI File** is clicked, ensuring uniqueness across batches without any manual coordination.
+
+**Format:** `3` + `YY` + `MM` + `DD` + `HH` + `MM` (10 digits)
+
+**Example:** Clicking Generate at 14:23 on 24 February 2026 produces seed `3260224142`.
+
+Orders within the same batch increment sequentially from that seed: `3260224142`, `3260224143`, `3260224144`, and so on.
+
+Provided two batches are not generated within the same calendar minute, their order number ranges will never overlap.
+
+---
+
+### Column Mapping Panel
+
+The **Column Mapping** panel (collapsed by default) shows the relationship between each EDI field and the corresponding spreadsheet column. Auto-mapping occurs on upload using exact header matching.
+
+To override any mapping, expand the panel and use the dropdowns. Selecting `(none)` leaves that EDI field blank (padded with spaces or zeros) in the output.
+
+Changes take effect on the next Generate click.
+
+---
+
+### EDI Output Format
+
+The generated file is a fixed-width ASCII plain-text file with CRLF (`\r\n`) line endings. Fields occupy exact character positions with no delimiters. Text fields are space-padded on the right; numeric fields are zero-padded on the left.
+
+**File structure:**
 
 ```
 $$HDR{sender}  {fileId}   {timestamp}
 H1...  (350 chars)
 H2...  (358 chars)
 H3...  ( 20 chars)
-D1...  (266 chars)   ← one per line item
-[repeat H1/H2/H3/D1 blocks for each order]
+D1...  (266 chars each — one per line item)
+[H1 / H2 / H3 / D1 blocks repeat for each order]
 $$EOF{sender}  {fileId}   {timestamp}{recordCount}
 ```
 
-### Record Counts
-
-The `$$EOF` footer includes a 7-digit record count. This count includes **only** the H1, H2, H3 and D1 lines — the `$$HDR` and `$$EOF` lines themselves are **not** counted. This matches the expectation of the receiving import system.
+The `$$EOF` record count is a 7-digit zero-padded total of H1 + H2 + H3 + D1 lines only. `$$HDR` and `$$EOF` themselves are not included in the count.
 
 ---
 
-## Record Type Reference
+### Record Type Reference
 
-### $$HDR — File Header
+#### $$HDR — File Header
 
 | Chars | Content |
 |---|---|
 | 0–4 | `$$HDR` |
-| 5–8 | Sender code (e.g. `BLOO`) |
+| 5–8 | Sender code (`BLOO`) |
 | 9–10 | Two spaces |
 | 11–17 | File ID (7 chars, zero-padded) |
 | 18–20 | Three spaces |
 | 21–34 | Timestamp `YYYYMMDDHHMMSS` |
 
----
-
-### H1 — Order Header (350 characters)
+#### H1 — Order Header (350 characters)
 
 | Position | Length | Content |
 |---|---|---|
@@ -190,40 +232,36 @@ The `$$EOF` footer includes a 7-digit record count. This count includes **only**
 | 25 | 30 | Spaces |
 | 55 | 1 | `C` (currency flag) |
 | 56 | 1 | Space |
-| 57 | 28 | Customer/order reference |
+| 57 | 28 | Customer / order reference |
 | 85 | 7 | Spaces |
-| 92 | 8 | Carrier code (`RMA` = Royal Mail) |
-| 100 | 2 | `N` |
+| 92 | 8 | Carrier code — `RMA     ` (Royal Mail) |
+| 100 | 2 | ` N` |
 | 102 | 30 | Spaces |
 | 132 | 57 | Zeros |
-| 189 | 6 | Space + 5 spaces |
-| 195 | 40 | PDF placeholder (`.PDF` padded) |
+| 189 | 6 | Spaces |
+| 195 | 40 | PDF placeholder (`.PDF` padded to 40 chars) |
 | 235 | 2 | Spaces |
 | 237 | 3 | Currency code (e.g. `GBP`) |
 | 240 | 110 | Spaces |
 
----
-
-### H2 — Customer / Address (358 characters)
+#### H2 — Customer / Address (358 characters)
 
 | Position | Length | Content |
 |---|---|---|
 | 0 | 2 | `H2` |
 | 2 | 15 | Order number |
 | 17 | 27 | Customer code (`ST` + subscription ref) |
-| 44 | 50 | Customer / contact name |
+| 44 | 50 | Contact name |
 | 94 | 50 | Address line 1 |
 | 144 | 50 | Address line 2 |
 | 194 | 50 | Address line 3 |
 | 244 | 50 | Email address |
 | 294 | 32 | City / company name |
 | 326 | 9 | Post code |
-| 335 | 3 | Country code (ISO alpha-3, e.g. `GBR`) |
+| 335 | 3 | Country code (ISO alpha-3) |
 | 338 | 20 | Telephone number |
 
----
-
-### H3 — Payment Terms (20 characters)
+#### H3 — Payment Terms (20 characters)
 
 | Position | Length | Content |
 |---|---|---|
@@ -231,9 +269,7 @@ The `$$EOF` footer includes a 7-digit record count. This count includes **only**
 | 2 | 15 | Order number |
 | 17 | 3 | Incoterms code (`FCA` or `DAP`) |
 
----
-
-### D1 — Line Item (266 characters)
+#### D1 — Line Item (266 characters)
 
 | Position | Length | Content |
 |---|---|---|
@@ -245,14 +281,12 @@ The `$$EOF` footer includes a 7-digit record count. This count includes **only**
 | 50 | 18 | Zeros |
 | 68 | 78 | Spaces |
 | 146 | 28 | Quantity block (`0000001` + 21 zeros) |
-| 174 | 12 | Unit price in pence (space + 9 digits + 2 spaces); set to 0 |
+| 174 | 12 | Unit price in pence (always zero) |
 | 186 | 40 | Spaces |
 | 226 | 13 | ISBN / ISSN (13 digits) |
 | 239 | 27 | Spaces |
 
----
-
-### $$EOF — File Footer
+#### $$EOF — File Footer
 
 | Chars | Content |
 |---|---|
@@ -262,51 +296,11 @@ The `$$EOF` footer includes a 7-digit record count. This count includes **only**
 | 11–17 | File ID |
 | 18–20 | Three spaces |
 | 21–34 | Timestamp |
-| 35–41 | Record count (7 digits, zero-padded) — H1+H2+H3+D1 lines only |
+| 35–41 | Record count (7 digits, zero-padded) — H1 + H2 + H3 + D1 only |
 
 ---
 
-## Order Number Scheme
-
-To prevent duplicate order numbers across multiple batch uploads, the starting order number is automatically derived from the current date and time at the moment the **Generate** button is clicked.
-
-**Format:** `3` + `YY` + `MM` + `DD` + `HH` + `MM` (10 digits total)
-
-**Example:** Generated at 14:23 on 24 February 2026 → seed `3260224142`
-
-Orders in the same batch are sequential: `3260224142`, `3260224143`, `3260224144`, etc.
-
-As long as two batches are not generated within the same calendar minute, their order number ranges cannot overlap. The field is displayed as read-only in the UI and refreshes on every Generate click.
-
----
-
-## Column Mapping
-
-The Column Mapping panel (collapsed by default) shows the relationship between EDI fields and your spreadsheet columns. On file load, the tool attempts to auto-match each EDI field to a spreadsheet column by exact header name.
-
-To override a mapping, expand the panel and use the dropdowns. Select `(none)` to leave a field unmapped — it will be written as spaces/zeros in the output.
-
-Changes to the mapping take effect on the next Generate click.
-
----
-
-## File Settings Reference
-
-| Setting | Default | Description |
-|---|---|---|
-| File ID / Batch Number | `0027816` | Appears in $$HDR and $$EOF markers. Update per batch if required. |
-| File Prefix | `PO` | Used in the output filename only (e.g. `PO.0027816_...`). |
-| Sender Code | `BLOO` | 4–6 character code written to $$HDR / $$EOF. |
-| Currency | `GBP` | 3-character currency code written to each H1 record. |
-| Payment Terms | `FCA` | Incoterms code written to each H3 record. `FCA` = Free Carrier; `DAP` = Delivered at Place. |
-| Order Number Start | Auto | Read-only. Timestamp-derived; regenerated on each Generate click. |
-| Default Qty | `1` | Fallback quantity used when the Quantity column is blank or zero. |
-
----
-
-## Output Filename Convention
-
-Downloaded EDI files use the following naming pattern:
+### Output Filename Convention
 
 ```
 {prefix}.{fileId}_{HHMM}_({DD-MM-YY}).txt
@@ -318,27 +312,96 @@ Downloaded EDI files use the following naming pattern:
 
 ## XML Metadata Generator
 
-The XML Metadata panel accepts a separate Excel file containing book/journal specification data and generates one XML file per row, downloaded as `metadata.zip`.
+### How to Use
 
-### Excel Input Format
+**Step 1 — Download the template (first time only)**
+Click **Download Metadata Template** in the Generate XML Metadata panel to save `metadata_template.xlsx`.
 
-The tool expects one row per title. The first row must be a header row. Column order does not matter — headers are matched case-insensitively.
+**Step 2 — Populate the template**
+Fill in one row per title. The template contains three columns: `ISSN`, `Title`, and `Page Extent`. All other specification values are calculated automatically.
 
-| Column Header | XML Element | Notes |
+**Step 3 — Upload the file**
+Drag the populated file onto the metadata upload zone or click to browse. The app validates the column structure and checks every ISSN value. If either check fails, the file is rejected with a detailed error report.
+
+**Step 4 — Generate**
+Click **Generate XML & Download ZIP**. Two files are downloaded:
+- `metadata.zip` — contains one `.xml` file per row, each named by its ISSN
+- `metadata_summary.txt` — a plain-text summary report of all generated records
+
+**Step 5 — Clear (optional)**
+Click **Clear** to reset the metadata panel and upload a new file.
+
+---
+
+### Metadata Template — Column Reference
+
+The metadata template contains exactly three columns. Column names and order must not be changed.
+
+| # | Column Header | Description |
 |---|---|---|
-| `ISSN` | `<issn>` | Also used as the output filename (`{ISSN}.xml`) |
-| `Title` | `<title>` | |
-| `Trim Height` | `<trim_height>` | |
-| `Trim Width` | `<trim_width>` | |
-| `Spine Size` | `<spine_size>` | |
-| `Paper Type` | `<paper_type>` | |
-| `Binding Style` | `<binding_style>` | |
-| `Page Extent` | `<page_extent>` | |
-| `Lamination` | `<lamination>` | |
+| 1 | `ISSN` | 13-digit ISSN with no spaces or hyphens. Used as the XML filename (`{ISSN}.xml`). |
+| 2 | `Title` | Full journal or issue title. Written directly to `<title>` in the XML. |
+| 3 | `Page Extent` | Total number of pages. Drives the paper type selection and spine size calculation. |
+
+---
+
+### ISSN Validation
+
+After column structure validation passes, every ISSN value in the file is checked individually. An ISSN is valid only if it:
+
+- Contains exactly **13 digits**
+- Contains **no spaces**
+- Contains **no hyphens**
+- Contains **no other non-numeric characters**
+
+If any ISSNs fail this check, the entire file is rejected and a row-by-row error report is shown listing the row number and the invalid value. The file must be corrected before generation can proceed.
+
+---
+
+### Derived Values
+
+Only ISSN, Title and Page Extent are read from the spreadsheet. All remaining specification values are fixed constants or calculated from Page Extent:
+
+| XML Field | Source | Value / Rule |
+|---|---|---|
+| `<trim_height>` | Fixed | `245` |
+| `<trim_width>` | Fixed | `170` |
+| `<binding_style>` | Fixed | `Limp` |
+| `<lamination>` | Fixed | `Matt` |
+| `<paper_type>` | Derived from Page Extent | `Magno Matt 130 gsm` if extent ≤ 32; `Magno Matt 90 gsm` if extent ≥ 33 |
+| `<spine_size>` | Calculated | See formula below |
+| `<page_extent>` | From spreadsheet | Passed through directly |
+
+---
+
+### Spine Size Calculation
+
+The spine size is calculated using the standard book spine formula, with a Limp binding addition applied:
+
+```
+spine = round( (pageExtent × gsm × volume) / 20000 + 0.65 )
+```
+
+Where:
+- `gsm` is the paper grammage: `130` (for extent ≤ 32) or `90` (for extent ≥ 33)
+- `volume` is `10` for both paper types
+- `0.65` is the standard addition for Limp binding
+- The result is rounded to the **nearest whole number** (millimetres)
+
+**Examples:**
+
+| Page Extent | Paper Selected | Spine Calculation | Spine Size |
+|---|---|---|---|
+| 16 | Magno Matt 130 gsm | (16 × 130 × 10) / 20000 + 0.65 | 2 mm |
+| 32 | Magno Matt 130 gsm | (32 × 130 × 10) / 20000 + 0.65 | 3 mm |
+| 33 | Magno Matt 90 gsm | (33 × 90 × 10) / 20000 + 0.65 | 2 mm |
+| 120 | Magno Matt 90 gsm | (120 × 90 × 10) / 20000 + 0.65 | 6 mm |
+
+---
 
 ### XML Output Structure
 
-Each generated file follows this structure:
+Each generated XML file follows this structure:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -351,10 +414,10 @@ Each generated file follows this structure:
         <dimensions>
             <trim_height>245</trim_height>
             <trim_width>170</trim_width>
-            <spine_size>5</spine_size>
+            <spine_size>6</spine_size>
         </dimensions>
         <materials>
-            <paper_type>LetsGo Silk 90 gsm</paper_type>
+            <paper_type>Magno Matt 90 gsm</paper_type>
             <binding_style>Limp</binding_style>
             <lamination>Matt</lamination>
         </materials>
@@ -363,24 +426,77 @@ Each generated file follows this structure:
 </book>
 ```
 
-### Output
+Files are named `{ISSN}.xml` and bundled into `metadata.zip`.
 
-All XML files are bundled into a single `metadata.zip` download. Each file is named `{ISSN}.xml`. Rows with no ISSN value are skipped; the status message reports how many were skipped.
+---
+
+### Summary Report
+
+A `metadata_summary.txt` file is downloaded separately alongside the ZIP. It contains a dated header, one entry per generated XML file, and a footer with totals. Example:
+
+```
+════════════════════════════════════════════════════════════════════════
+  BLOOMSBURY PUBLISHING — XML METADATA GENERATION SUMMARY
+════════════════════════════════════════════════════════════════════════
+  Generated : 28 February 2026 at 09:45:12
+  Source    : 3 rows processed
+────────────────────────────────────────────────────────────────────────
+
+    1. ISSN        : 9771472645051
+       Title       : [2026] 1 FCR 4
+       Page Extent : 120
+       Paper Type  : Magno Matt 90 gsm
+       Spine Size  : 6 mm
+       Trim Size   : 245 × 170 mm
+       Binding     : Limp  |  Lamination: Matt
+       File        : 9771472645051.xml
+
+────────────────────────────────────────────────────────────────────────
+  Total XML files generated : 3
+════════════════════════════════════════════════════════════════════════
+```
+
+---
+
+## Column Validation
+
+Both upload zones enforce strict column validation before any data is processed. The validation checks:
+
+1. **Column count** — the file must have exactly the expected number of columns
+2. **Column names** — each header must match the template exactly, including case, spacing, and punctuation
+3. **Column order** — columns must appear in the same sequence as the template
+
+If any check fails, the file is rejected immediately and a structured error panel is shown. Each mismatch is listed individually with its column number, the expected header, and what was actually found. No data is loaded until all errors are resolved.
+
+For metadata uploads, a further **ISSN validation** step runs after the column check passes (see [ISSN Validation](#issn-validation)).
+
+The **Download Order Template** and **Download Metadata Template** buttons in each panel provide the correct template files to use as a starting point.
+
+---
+
+## Template Downloads
+
+Both template files must be present in the application's root directory (alongside `index.html`) for the download buttons to work.
+
+| Button | File | Panel |
+|---|---|---|
+| Download Order Template | `order_file.xlsx` | Import Excel Data |
+| Download Metadata Template | `metadata_template.xlsx` | Generate XML Metadata |
+
+These files define the canonical column structure enforced by the upload validation. The header rows must not be modified.
 
 ---
 
 ## Dependencies
 
-All dependencies are loaded from CDN and require an internet connection on first use.
+All libraries are loaded from CDN and require an internet connection on first load. The browser will cache them for subsequent offline use.
 
-| Library | Version | Purpose | CDN |
+| Library | Version | Purpose | Source |
 |---|---|---|---|
-| [SheetJS (xlsx)](https://sheetjs.com/) | 0.18.5 | Excel/CSV parsing | cdnjs.cloudflare.com |
-| [JSZip](https://stuk.github.io/jszip/) | 3.10.1 | ZIP file creation for XML metadata | cdnjs.cloudflare.com |
+| [SheetJS (xlsx)](https://sheetjs.com/) | 0.18.5 | Excel and CSV parsing | cdnjs.cloudflare.com |
+| [JSZip](https://stuk.github.io/jszip/) | 3.10.1 | ZIP file creation for XML bundle | cdnjs.cloudflare.com |
 | [Font Awesome](https://fontawesome.com/) | 6.5.1 | UI icons | cdnjs.cloudflare.com |
-| [IBM Plex Sans + Mono](https://fonts.google.com/specimen/IBM+Plex+Sans) | — | Typography | fonts.googleapis.com |
-
-No npm, bundler, or build step is required.
+| [IBM Plex Sans + Mono](https://fonts.google.com/specimen/IBM+Plex+Sans) | — | Interface and monospace typography | fonts.googleapis.com |
 
 ---
 
@@ -394,15 +510,7 @@ No npm, bundler, or build step is required.
 | Safari 14+ | ✅ Full support |
 | Internet Explorer | ❌ Not supported |
 
----
-
-## Known Limitations
-
--   **Price field** — Unit price (D1 positions 174–186) is always written as zero. The source Excel does not contain pricing data. If prices are required, a new column mapping would need to be added.
--   **Single H2 record per order** — The tool writes one H2 (ship-to address) per order. Some TFUK files contain a second H2 with a `CS` prefix (carrier address). This is not currently implemented.
--   **No offline support** — CDN libraries must be reachable on first load. A future improvement could bundle the dependencies locally.
--   **Same-minute duplicates** — If two EDI batches are generated within the same minute, their order number ranges will share the same seed. In normal use this is not a practical concern.
--   **XML price data** — The XML metadata output does not include pricing. If price fields are added to the metadata spreadsheet in future, a new column mapping and XML element would need to be implemented.
+The Clipboard API requires HTTPS or `localhost`. On plain HTTP, copy-to-clipboard will silently fail — use the Download button instead.
 
 ---
 
@@ -412,27 +520,34 @@ No npm, bundler, or build step is required.
 
 All character positions in `script.js` were verified by byte-level comparison against live production files:
 
--   `T1.M02221600__22-02-26_.txt` (TFUK reference)
--   `PO_TJ_20260223-190749-830.txt` (CUP reference)
+- `T1.M02221600__22-02-26_.txt` (TFUK reference)
+- `PO_TJ_20260223-190749-830.txt` (CUP reference)
 
-The specification document (`hachette_order_file_format_spec.md`) was found to have some inaccuracies versus the actual files. The implementation follows the **actual files**, not the spec document, for all field positions.
+Where the `hachette_order_file_format_spec.md` specification document disagreed with the actual files, the implementation follows the **actual files**.
 
-### Adding a New EDI Field
+### Adding a New EDI Column
 
-1.  Add an entry to the `EDI_FIELDS` array in `script.js` with a unique `key`, display `label`, and `default` header name.
-2.  Add a `getCell(row, 'yourKey')` call at the appropriate character position inside `generateEDI()`.
-3.  Update this README.
+1. Add the exact header string to `ORDER_TEMPLATE_COLUMNS` in `script.js` at the correct position.
+2. Add an entry to `EDI_FIELDS` with a unique `key`, display `label`, and `default` header name.
+3. Add a `getCell(row, 'yourKey')` call at the appropriate character position inside `generateEDI()`.
+4. Update this README.
 
-### Adding a New XML Metadata Field
+### Changing Fixed XML Metadata Values
 
-1.  Add an entry to the `XML_FIELDS` array in `script.js` with a unique `key`, `label`, and one or more `aliases` (lowercase strings used for case-insensitive column matching).
-2.  Add a `getXMLCell(row, 'yourKey')` call inside `buildXML()` at the appropriate position in the XML template string.
-3.  Update this README.
+The fixed values (trim height, trim width, binding style, lamination) are defined as constants inside `buildXML()` in `script.js`. Locate the `Fixed values` comment block and update the relevant string.
+
+### Changing the Paper / Extent Threshold
+
+The extent threshold (currently ≤ 32 = Magno Matt 130 gsm, ≥ 33 = Magno Matt 90 gsm) is controlled by a single `if (extent <= 32)` condition inside `buildXML()`. The paper names, grammage values and volume constant (`10`) are all defined in the same function and can be updated independently.
+
+### Changing the Spine Formula
+
+The spine calculation uses the formula `(extent × gsm × volume) / SPINE_FACTOR + LIMP_ADDITION` with `Math.round()`. The constants `SPINE_FACTOR` (20000), `LIMP_ADDITION` (0.65) and `VOLUME` (10) are declared as local constants inside `buildXML()` and can be adjusted there.
 
 ### Changing the Carrier Code
 
-The carrier code at H1 positions `[92:100]` is hardcoded as `'RMA     '` (Royal Mail, 8 chars). To change it, locate this line in `script.js` and update the string, ensuring it remains exactly 8 characters (pad with spaces if shorter).
+The Royal Mail carrier code at H1 positions `[92:100]` is hardcoded as `'RMA     '` (8 characters). To change it, locate this line in `generateEDI()` and update the string, ensuring it remains exactly 8 characters:
 
 ```js
-+ 'RMA     '   // [92:100]  Royal Mail carrier code
++ 'RMA     '   // [92:100] Royal Mail carrier code
 ```
