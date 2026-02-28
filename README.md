@@ -1,6 +1,6 @@
 # BLOUK EDI Order File Generator
 
-A browser-based tool for Bloomsbury Publishing that converts subscription order data from Excel into the fixed-width EDI format required by the Taylor & Francis / BLOUK distribution system, and separately generates XML metadata files from a streamlined three-column spreadsheet.
+A browser-based tool for Bloomsbury Publishing that converts subscription order data from Excel into the fixed-width EDI format required by the TJClays POD Order Importer and separately generates XML metadata files from a streamlined three-column spreadsheet.
 
 No installation, server, or build tools required — the entire application runs in the browser from a single folder.
 
@@ -55,7 +55,7 @@ No installation, server, or build tools required — the entire application runs
 
 The application provides two independent tools in a single interface:
 
-**EDI Order File Generator** — accepts a 16-column order spreadsheet and produces a plain-text fixed-width EDI file in the BLOUK T1 format, ready to submit to the Taylor & Francis / BLOUK distribution system.
+**EDI Order File Generator** — accepts a 16-column order spreadsheet and produces a plain-text fixed-width EDI file in the BLOUK T1 format.
 
 **XML Metadata Generator** — accepts a simplified 3-column spreadsheet (ISSN, Title, Page Extent) and produces one XML metadata file per row. All remaining specification values — trim size, binding, lamination, paper type, and spine width — are derived automatically from the page extent using defined business rules. The XML files are bundled into `metadata.zip`, and a plain-text summary report (`metadata_summary.txt`) is downloaded alongside it.
 
