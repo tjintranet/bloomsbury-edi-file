@@ -366,11 +366,13 @@ Only ISSN, Title and Page Extent are read from the spreadsheet. All remaining sp
 |---|---|---|
 | `<trim_height>` | Fixed | `245` |
 | `<trim_width>` | Fixed | `170` |
+| `<colour>` | Fixed | `Mono` |
 | `<binding_style>` | Fixed | `Limp` |
 | `<lamination>` | Fixed | `Matt` |
-| `<paper_type>` | Derived from Page Extent | `Magno Matt 130 gsm` if extent ≤ 32; `Magno Matt 90 gsm` if extent ≥ 33 |
-| `<spine_size>` | Calculated | See formula below |
-| `<page_extent>` | From spreadsheet | Passed through directly |
+| `<paper>` | Derived from Page Extent | `Magno Matt 130 gsm` if extent ≤ 38; `Magno Matt 90 gsm` if extent ≥ 39 |
+| `<gsm>` | Derived from Page Extent | `130` if extent ≤ 38; `90` if extent ≥ 39 |
+| `<spine>` | Calculated | See formula below |
+| `<extent>` | From spreadsheet | Passed through directly |
 
 ---
 
@@ -383,7 +385,7 @@ spine = round( (pageExtent × gsm × volume) / 20000 + 0.65 )
 ```
 
 Where:
-- `gsm` is the paper grammage: `130` (for extent ≤ 32) or `90` (for extent ≥ 33)
+- `gsm` is the paper grammage: `130` (for extent ≤ 38) or `90` (for extent ≥ 39)
 - `volume` is `10` for both paper types
 - `0.65` is the standard addition for Limp binding
 - The result is rounded to the **nearest whole number** (millimetres)
@@ -405,25 +407,19 @@ Each generated XML file follows this structure:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<book>
-    <basic_info>
-        <issn>9771472645051</issn>
-        <title>[2026] 1 FCR 4</title>
-    </basic_info>
-    <specifications>
-        <dimensions>
-            <trim_height>245</trim_height>
-            <trim_width>170</trim_width>
-            <spine_size>6</spine_size>
-        </dimensions>
-        <materials>
-            <paper_type>Magno Matt 90 gsm</paper_type>
-            <binding_style>Limp</binding_style>
-            <lamination>Matt</lamination>
-        </materials>
-        <page_extent>120</page_extent>
-    </specifications>
-</book>
+<record>
+  <isbn>9771472645051</isbn>
+  <title>[2026] 1 FCR 4</title>
+  <trim_height>245</trim_height>
+  <trim_width>170</trim_width>
+  <extent>120</extent>
+  <spine>6</spine>
+  <paper>Magno Matt 90 gsm</paper>
+  <gsm>90</gsm>
+  <colour>Mono</colour>
+  <binding_style>Limp</binding_style>
+  <lamination>Matt</lamination>
+</record>
 ```
 
 Files are named `{ISSN}.xml` and bundled into `metadata.zip`.
@@ -534,11 +530,11 @@ Where the `hachette_order_file_format_spec.md` specification document disagreed 
 
 ### Changing Fixed XML Metadata Values
 
-The fixed values (trim height, trim width, binding style, lamination) are defined as constants inside `buildXML()` in `script.js`. Locate the `Fixed values` comment block and update the relevant string.
+The fixed values (trim height, trim width, colour, binding style, lamination) are defined as constants inside `buildXML()` in `script.js`. Locate the `Fixed values` comment block and update the relevant string.
 
 ### Changing the Paper / Extent Threshold
 
-The extent threshold (currently ≤ 32 = Magno Matt 130 gsm, ≥ 33 = Magno Matt 90 gsm) is controlled by a single `if (extent <= 32)` condition inside `buildXML()`. The paper names, grammage values and volume constant (`10`) are all defined in the same function and can be updated independently.
+The extent threshold (currently ≤ 38 = Magno Matt 130 gsm, ≥ 39 = Magno Matt 90 gsm) is controlled by a single `if (extent <= 38)` condition inside `buildXML()`. The paper names, grammage values and volume constant (`10`) are all defined in the same function and can be updated independently.
 
 ### Changing the Spine Formula
 

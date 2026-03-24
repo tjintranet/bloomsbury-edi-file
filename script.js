@@ -1077,9 +1077,8 @@ initOrderSeed();
    Accepts a separate Excel file containing journal/book metadata
    and generates one XML file per row, bundled as metadata.zip.
 
-   Expected columns (case-insensitive, flexible matching):
-     ISSN, Title, Trim Height, Trim Width, Spine Size,
-     Paper Type, Binding Style, Page Extent, Lamination
+   Expected columns:
+     ISSN, Title, Page Extent
 
    Output filename per XML: {ISSN}.xml
    Bundle filename:         metadata.zip
@@ -1258,12 +1257,13 @@ function xmlEscape(str) {
  *   Lamination    = Matt
  *
  * Derived values (from Page Extent):
- *   Paper Type  = Magno Matt 130 gsm  if extent ≤ 32
- *               = Magno Matt 90 gsm   if extent ≥ 33
+ *   Paper       = Magno Matt 130 gsm  if extent ≤ 38
+ *               = Magno Matt 90 gsm   if extent ≥ 39
+ *   GSM         = 130 or 90 (numeric, written as a separate element)
  *
- *   Spine Size  = (extent × gsm × volume) / 20000 + 0.65 (Limp addition)
+ *   Spine       = (extent × gsm × volume) / 20000 + 0.65 (Limp addition)
  *               where volume = 10 for both paper types
- *               Result rounded to 2 decimal places.
+ *               Result rounded to nearest whole number (millimetres).
  *
  * @param {Array} row
  * @return {{ xml: string, issn: string }}
@@ -1277,6 +1277,7 @@ function buildXML(row) {
   // ── Fixed values ────────────────────────────────────────────────────────
   const trimHeight   = '245';
   const trimWidth    = '170';
+  const colour       = 'Mono';
   const bindingStyle = 'Limp';
   const lamination   = 'Matt';
 
@@ -1286,7 +1287,7 @@ function buildXML(row) {
   const SPINE_FACTOR       = 20000;
 
   let paperType, gsm;
-  if (extent <= 32) {
+  if (extent <= 38) {
     paperType = 'Magno Matt 130 gsm';
     gsm       = 130;
   } else {
@@ -1300,25 +1301,19 @@ function buildXML(row) {
 
   const xml =
 `<?xml version="1.0" encoding="UTF-8"?>
-<book>
-    <basic_info>
-        <issn>${xmlEscape(issn)}</issn>
-        <title>${xmlEscape(title)}</title>
-    </basic_info>
-    <specifications>
-        <dimensions>
-            <trim_height>${trimHeight}</trim_height>
-            <trim_width>${trimWidth}</trim_width>
-            <spine_size>${spineSize}</spine_size>
-        </dimensions>
-        <materials>
-            <paper_type>${xmlEscape(paperType)}</paper_type>
-            <binding_style>${bindingStyle}</binding_style>
-            <lamination>${lamination}</lamination>
-        </materials>
-        <page_extent>${extent}</page_extent>
-    </specifications>
-</book>`;
+<record>
+  <isbn>${xmlEscape(issn)}</isbn>
+  <title>${xmlEscape(title)}</title>
+  <trim_height>${trimHeight}</trim_height>
+  <trim_width>${trimWidth}</trim_width>
+  <extent>${extent}</extent>
+  <spine>${spineSize}</spine>
+  <paper>${xmlEscape(paperType)}</paper>
+  <gsm>${gsm}</gsm>
+  <colour>${colour}</colour>
+  <binding_style>${bindingStyle}</binding_style>
+  <lamination>${lamination}</lamination>
+</record>`;
 
   return { xml, issn };
 }
@@ -1368,8 +1363,8 @@ async function generateXMLMetadata() {
       const title      = getXMLCell(row, 'title');
       const extentRaw  = getXMLCell(row, 'pageExtent');
       const extent     = parseInt(extentRaw, 10) || 0;
-      const paperType  = extent <= 32 ? 'Magno Matt 130 gsm' : 'Magno Matt 90 gsm';
-      const gsm        = extent <= 32 ? 130 : 90;
+      const paperType  = extent <= 38 ? 'Magno Matt 130 gsm' : 'Magno Matt 90 gsm';
+      const gsm        = extent <= 38 ? 130 : 90;
       const spineSize  = Math.round((extent * gsm * 10) / 20000 + 0.65);
 
       const issnSafe = issn.replace(/[^a-zA-Z0-9_\-]/g, '_');
@@ -1382,7 +1377,7 @@ async function generateXMLMetadata() {
       summaryLines.push(`       Paper Type  : ${paperType}`);
       summaryLines.push(`       Spine Size  : ${spineSize} mm`);
       summaryLines.push(`       Trim Size   : 245 × 170 mm`);
-      summaryLines.push(`       Binding     : Limp  |  Lamination: Matt`);
+      summaryLines.push(`       Colour      : Mono  |  Binding: Limp  |  Lamination: Matt`);
       summaryLines.push(`       File        : ${issnSafe}.xml`);
       summaryLines.push('');
     });
