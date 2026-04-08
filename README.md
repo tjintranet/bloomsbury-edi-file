@@ -16,6 +16,9 @@ No installation, server, or build tools required — the entire application runs
   - [EDI Order File Generator](#edi-order-file-generator)
     - [How to Use](#how-to-use)
     - [Order Template — Column Reference](#order-template--column-reference)
+    - [Order Template — Structure](#order-template--structure)
+    - [Order Template — Text Formatting](#order-template--text-formatting)
+    - [Country Code Validation](#country-code-validation)
     - [Row Grouping](#row-grouping)
     - [File Settings Reference](#file-settings-reference)
     - [Order Number Scheme](#order-number-scheme)
@@ -48,6 +51,7 @@ No installation, server, or build tools required — the entire application runs
     - [Changing the Paper / Extent Threshold](#changing-the-paper--extent-threshold)
     - [Changing the Spine Formula](#changing-the-spine-formula)
     - [Changing the Carrier Code](#changing-the-carrier-code)
+    - [Updating the Supported Country Code List](#updating-the-supported-country-code-list)
 
 ---
 
@@ -72,10 +76,11 @@ blouk_edi/
 ├── script.js                — All application logic
 ├── order_file.xlsx          — Order upload template (download from app)
 ├── metadata_template.xlsx   — Metadata upload template (download from app)
+├── USERGUIDE.pdf            — End-user guide (download from app)
 └── README.md                — This document
 ```
 
-All logic is in `script.js`; all presentation is in `style.css`; `index.html` contains only semantic structure. The two `.xlsx` template files must remain in the same root directory as `index.html` for the in-app template download buttons to work.
+All logic is in `script.js`; all presentation is in `style.css`; `index.html` contains only semantic structure. The two `.xlsx` template files and `USERGUIDE.pdf` must remain in the same root directory as `index.html` for the in-app download buttons to work.
 
 ---
 
@@ -92,10 +97,10 @@ All logic is in `script.js`; all presentation is in `style.css`; `index.html` co
 ### How to Use
 
 **Step 1 — Download the template (first time only)**
-Click **Download Order Template** in the Import Excel Data panel to save `order_file.xlsx`. Use this file as the basis for every upload — do not rename, reorder or add columns.
+Click **Download Order Template** in the Import Excel Data panel to save `order_file.xlsx`. A **Download User Guide** button is also available directly below it. Use the template as the basis for every upload — do not rename, reorder or add columns.
 
 **Step 2 — Populate the template**
-Fill in your subscription order rows below the header row. Each row represents one journal issue or subscription line. See [Order Template — Column Reference](#order-template--column-reference) for field details.
+Fill in your subscription order rows starting from row 4 (the first three rows are the title bar, column group labels, and column headers respectively). Row 4 contains a pre-filled example row in grey italics — overwrite it or start from row 5. See [Order Template — Column Reference](#order-template--column-reference) for field details.
 
 **Step 3 — Upload the file**
 Drag `order_file.xlsx` onto the upload zone or click to browse. The app validates that the column structure exactly matches the template. If validation passes, a green confirmation shows the row count and the Source Data tab populates with a preview table.
@@ -107,7 +112,7 @@ Expand the **File Settings** panel to review or update the batch configuration. 
 The **Column Mapping** panel shows how spreadsheet columns are mapped to EDI fields. Auto-mapping occurs on upload; expand the panel to override any mapping manually.
 
 **Step 6 — Generate**
-Click **Generate EDI File**. The app groups rows into orders, builds all EDI records, switches to the EDI Preview tab with colour-coded output, and enables the Download button.
+Click **Generate EDI File**. The app validates all country codes first — if any row contains an unrecognised value, generation is aborted and a red error panel lists every affected row with its Order Ref and the invalid value. If validation passes, the app groups rows into orders, builds all EDI records, switches to the EDI Preview tab with colour-coded output, and enables the Download button.
 
 **Step 7 — Download**
 Click **Download .txt** to save the EDI file using the standard filename convention.
@@ -120,8 +125,8 @@ The order template contains 16 columns in a fixed order. All column names must b
 
 | # | Column Header | EDI Field | Notes |
 |---|---|---|---|
-| 1 | `Order Ref` | Order / item reference | Groups rows into a single order when shared with the same delivery name and company |
-| 2 | `ISSN` | ISBN / ISSN (D1) | Normalised to 13 digits in the EDI output |
+| 1 | `Order Ref` | Order / item reference | Groups rows into a single order when shared with the same delivery name and company. Leading zeros preserved. |
+| 2 | `ISSN (13-digit)` | ISBN / ISSN (D1) | Stored and passed through as a 13-digit text string. Standard ISSNs are 8 digits — pad to 13 as required by your workflow. |
 | 3 | `Journal/ Issue  Title` | Title | Not written to EDI; for reference only (note: two spaces after `/`) |
 | 4 | `Volume Number ` | — | Not written to EDI; for reference only (note: trailing space) |
 | 5 | `Volume Part` | — | Not written to EDI; for reference only |
@@ -132,12 +137,61 @@ The order template contains 16 columns in a fixed order. All column names must b
 | 10 | `Delivery address line 1` | H2 address line 1 | |
 | 11 | `Delivery address line 2` | H2 address line 2 | |
 | 12 | `Delivery address line 3` | H2 address line 3 | |
-| 13 | `Delivery Country` | H2 country code | Accepts ISO 2-letter or 3-letter codes; auto-converted to alpha-3 |
+| 13 | `Delivery Country` | H2 country code | Must be a recognised ISO 2-letter or alpha-3 code; validated before generation. See [Country Code Validation](#country-code-validation). |
 | 14 | `Post code` | H2 post code | |
-| 15 | `Telephone number ` | H2 telephone | Note: trailing space |
+| 15 | `Telephone number ` | H2 telephone | Leading zeros preserved. Note: trailing space. |
 | 16 | `Email address` | H2 email | |
 
 > **Important:** Several column headers contain trailing spaces or non-obvious punctuation (such as the double space in `Journal/ Issue  Title`). These are significant — they are part of the exact header string validated on upload. Always use `order_file.xlsx` as your starting point and do not modify the header row.
+
+---
+
+### Order Template — Structure
+
+The current `order_file.xlsx` template has three rows above the data entry area:
+
+| Row | Content |
+|---|---|
+| 1 | Title banner (`BLOUK EDI Order Form — Bloomsbury Publishing`) |
+| 2 | Column group labels (ORDER, PUBLICATION, DELIVERY, etc.) |
+| 3 | Column headers — the field names validated on upload |
+| 4+ | Data rows (row 4 contains a pre-filled example in grey italics) |
+
+The application reads headers from **row 3** and data from **row 4 onwards**. Rows 1 and 2 are skipped automatically. The template also includes a **Country Codes** sheet listing all supported ISO codes for reference.
+
+---
+
+### Order Template — Text Formatting
+
+All data columns in the template are pre-formatted as **Text** (`@` format) in Excel. This ensures:
+
+- Leading zeros in Order Ref are preserved exactly as entered (e.g. `0027816` is not converted to `27816`)
+- The full 13-digit ISSN is stored without numeric rounding or truncation
+- Telephone numbers with leading zeros are preserved (e.g. `07700900000`)
+- Postcodes containing letters or spaces are not altered
+
+**Do not change the cell format of any column.** If formatting is lost, download a fresh copy of the template from the app.
+
+---
+
+### Country Code Validation
+
+The **Delivery Country** column is validated at two points:
+
+**In the spreadsheet** — column M has a dropdown data validation listing all supported codes. Excel's `Stop` error style prevents entry of unrecognised values. A tooltip appears when the cell is selected explaining the expected format.
+
+**At generation time** — before any EDI output is written, `generateEDI()` checks every order's country code against the `VALID_ALPHA3` set (derived from `ISO_2_TO_3` in `script.js`). If any code fails, generation is aborted entirely and a structured error panel is shown listing each affected row with its row number, invalid value, and Order Ref.
+
+Accepted formats:
+
+| Format | Example | Notes |
+|---|---|---|
+| ISO 3166-1 alpha-2 (2-letter) | `GB` | Automatically converted to alpha-3 for the H2 record |
+| ISO 3166-1 alpha-3 (3-letter) | `GBR` | Must be a code present in `VALID_ALPHA3` — not any 3-letter string |
+
+City or region codes such as `LON`, `NYC`, or `EUR` are explicitly rejected at both validation points.
+
+The supported country list covers 46 territories. See `ISO_2_TO_3` in `script.js` for the complete mapping, or the **Country Codes** sheet in `order_file.xlsx` for a human-readable reference.
 
 ---
 
@@ -396,7 +450,7 @@ Where:
 |---|---|---|---|
 | 16 | Magno Matt 130 gsm | (16 × 130 × 10) / 20000 + 0.65 | 2 mm |
 | 32 | Magno Matt 130 gsm | (32 × 130 × 10) / 20000 + 0.65 | 3 mm |
-| 33 | Magno Matt 90 gsm | (33 × 90 × 10) / 20000 + 0.65 | 2 mm |
+| 39 | Magno Matt 90 gsm | (39 × 90 × 10) / 20000 + 0.65 | 2 mm |
 | 120 | Magno Matt 90 gsm | (120 × 90 × 10) / 20000 + 0.65 | 6 mm |
 
 ---
@@ -464,6 +518,8 @@ Both upload zones enforce strict column validation before any data is processed.
 
 If any check fails, the file is rejected immediately and a structured error panel is shown. Each mismatch is listed individually with its column number, the expected header, and what was actually found. No data is loaded until all errors are resolved.
 
+For order uploads, a further **country code validation** step runs at generation time (see [Country Code Validation](#country-code-validation)).
+
 For metadata uploads, a further **ISSN validation** step runs after the column check passes (see [ISSN Validation](#issn-validation)).
 
 The **Download Order Template** and **Download Metadata Template** buttons in each panel provide the correct template files to use as a starting point.
@@ -472,14 +528,15 @@ The **Download Order Template** and **Download Metadata Template** buttons in ea
 
 ## Template Downloads
 
-Both template files must be present in the application's root directory (alongside `index.html`) for the download buttons to work.
+All template and reference files must be present in the application's root directory (alongside `index.html`) for the download buttons to work.
 
 | Button | File | Panel |
 |---|---|---|
 | Download Order Template | `order_file.xlsx` | Import Excel Data |
+| Download User Guide | `USERGUIDE.pdf` | Import Excel Data |
 | Download Metadata Template | `metadata_template.xlsx` | Generate XML Metadata |
 
-These files define the canonical column structure enforced by the upload validation. The header rows must not be modified.
+The template header rows must not be modified. The `USERGUIDE.pdf` is the converted version of `USERGUIDE.md` and should be regenerated from that source whenever the guide is updated.
 
 ---
 
@@ -526,7 +583,8 @@ Where the `hachette_order_file_format_spec.md` specification document disagreed 
 1. Add the exact header string to `ORDER_TEMPLATE_COLUMNS` in `script.js` at the correct position.
 2. Add an entry to `EDI_FIELDS` with a unique `key`, display `label`, and `default` header name.
 3. Add a `getCell(row, 'yourKey')` call at the appropriate character position inside `generateEDI()`.
-4. Update this README.
+4. Add the corresponding column to `order_file.xlsx` in the correct position, formatted as Text (`@`).
+5. Update this README and `USERGUIDE.md`.
 
 ### Changing Fixed XML Metadata Values
 
@@ -547,3 +605,11 @@ The Royal Mail carrier code at H1 positions `[92:100]` is hardcoded as `'RMA    
 ```js
 + 'RMA     '   // [92:100] Royal Mail carrier code
 ```
+
+### Updating the Supported Country Code List
+
+The country list is defined in two places that must be kept in sync:
+
+1. **`script.js`** — the `ISO_2_TO_3` object maps every supported 2-letter code to its alpha-3 equivalent. `VALID_ALPHA3` is derived automatically from its values. Add or remove entries here to change which codes are accepted at generation time.
+
+2. **`order_file.xlsx`** — the Country Codes sheet contains the human-readable reference table, and column D of that sheet feeds the dropdown data validation on column M of the Order Form. Update both the table (columns A–C) and the validation list (column D) to match any changes made to `ISO_2_TO_3`.

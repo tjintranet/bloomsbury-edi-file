@@ -55,7 +55,7 @@ let ediOutput = '';
 /** @type {EdiField[]} */
 const EDI_FIELDS = [
   { key: 'subscriptionNum', label: 'Order Ref',                 default: 'Order Ref'                  },
-  { key: 'isbn',            label: 'ISSN',                      default: 'ISSN'                       },
+  { key: 'isbn',            label: 'ISSN (13-digit)',             default: 'ISSN (13-digit)'            },
   { key: 'title',           label: 'Journal/ Issue Title',      default: 'Journal/ Issue  Title'      },
   { key: 'volumeNumber',    label: 'Volume Number',             default: 'Volume Number '             },
   { key: 'volumePart',      label: 'Volume Part',               default: 'Volume Part'                },
@@ -79,7 +79,7 @@ const EDI_FIELDS = [
  */
 const ORDER_TEMPLATE_COLUMNS = [
   'Order Ref',
-  'ISSN',
+  'ISSN (13-digit)',
   'Journal/ Issue  Title',
   'Volume Number ',
   'Volume Part',
@@ -366,8 +366,12 @@ function processFile(file) {
 
       if (data.length < 1) throw new Error('The file appears to be empty.');
 
-      // First row = column headers; remaining rows = data
-      const fileHeaders = data[0].map(h => String(h ?? ''));
+      // Template structure:
+      //   Row 0 — title banner (merged, decorative)
+      //   Row 1 — column group labels (decorative)
+      //   Row 2 — column headers  ← actual field names
+      //   Row 3+ — data rows
+      const fileHeaders = data[2].map(h => String(h ?? ''));
 
       // ── Strict column validation against the order template ──────────────
       const validationError = validateColumns(fileHeaders, ORDER_TEMPLATE_COLUMNS, 'Order');
@@ -376,10 +380,10 @@ function processFile(file) {
         return;
       }
 
-      if (data.length < 2) throw new Error('No data rows found in the file.');
+      if (data.length < 4) throw new Error('No data rows found in the file.');
 
       headers = fileHeaders;
-      rawData = data.slice(1).filter(row => row.some(c => c !== null && c !== ''));
+      rawData = data.slice(3).filter(row => row.some(c => c !== null && c !== ''));
 
       showMessage(
         'uploadMsg',
