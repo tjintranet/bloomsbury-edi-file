@@ -66,6 +66,8 @@ const EDI_FIELDS = [
   { key: 'addr1',           label: 'Delivery address line 1',   default: 'Delivery address line 1'    },
   { key: 'addr2',           label: 'Delivery address line 2',   default: 'Delivery address line 2'    },
   { key: 'addr3',           label: 'Delivery address line 3',   default: 'Delivery address line 3'    },
+  { key: 'townCity',        label: 'Town/City',                 default: 'Town/City'                  },
+  { key: 'county',          label: 'County',                    default: 'County'                     },
   { key: 'country',         label: 'Delivery Country',          default: 'Delivery Country'           },
   { key: 'postcode',        label: 'Post code',                 default: 'Post code'                  },
   { key: 'phone',           label: 'Telephone number',          default: 'Telephone number '          },
@@ -90,6 +92,8 @@ const ORDER_TEMPLATE_COLUMNS = [
   'Delivery address line 1',
   'Delivery address line 2',
   'Delivery address line 3',
+  'Town/City',
+  'County',
   'Delivery Country',
   'Post code',
   'Telephone number ',
@@ -737,9 +741,9 @@ function generateEDI() {
     //   [44:94]  customer name         (50) — delivery contact name
     //   [94:144] address line 1        (50)
     //   [144:194] address line 2       (50)
-    //   [194:244] address line 3       (50)
+    //   [194:244] county               (50) — from 'County' column
     //   [244:294] email address        (50)
-    //   [294:326] city / company       (32)
+    //   [294:326] town / city          (32) — from 'Town/City' column
     //   [326:335] post code             (9)
     //   [335:338] country code (alpha-3)(3)
     //   [338:358] telephone            (20)
@@ -748,18 +752,15 @@ function generateEDI() {
       ? pad(`ST${order.ref}`, 27)
       : pad('ST', 27);
 
-    const addr2raw = getCell(firstRow, 'addr2');
-    const addr3raw = getCell(firstRow, 'addr3');
-
     let h2 = 'H2'
       + orderNumStr                                                   // [2:17]
       + subCode                                                       // [17:44]
       + pad(getCell(firstRow, 'deliveryName'), 50)                   // [44:94]
       + pad(getCell(firstRow, 'addr1'), 50)                          // [94:144]
-      + pad(addr2raw || addr3raw, 50)                                // [144:194]
-      + pad(addr2raw && addr3raw ? addr3raw : '', 50)                // [194:244]
+      + pad(getCell(firstRow, 'addr2'), 50)                          // [144:194]
+      + pad(getCell(firstRow, 'county'), 50)                         // [194:244]
       + pad(getCell(firstRow, 'email'), 50)                          // [244:294]
-      + pad(getCell(firstRow, 'deliveryCompany'), 32)                // [294:326]
+      + pad(getCell(firstRow, 'townCity'), 32)                       // [294:326]
       + pad(getCell(firstRow, 'postcode'), 9)                        // [326:335]
       + pad(isoToAlpha3(getCell(firstRow, 'country')), 3)            // [335:338]
       + pad(getCell(firstRow, 'phone'), 20);                         // [338:358]
