@@ -288,6 +288,14 @@ function toAscii(str) {
  * Returns an empty string if the field is unmapped or the cell is null.
  * All values are sanitised to 7-bit ASCII to preserve fixed-width field alignment.
  *
+ * Embedded newlines (\r, \n) are collapsed to a single space before any other
+ * processing. Excel cells with Wrap Text enabled can contain literal line breaks
+ * — typically from pasted address data — which SheetJS preserves verbatim.
+ * Left unchecked these break the fixed-width H2 record across multiple physical
+ * lines, causing the importer to fail with "begin 0, end 2, length 0" when it
+ * encounters the resulting blank line and tries to read a record-type prefix
+ * from a zero-length string.
+ *
  * @param  {Array}  row - A single data row from rawData
  * @param  {string} key - EDI field key from EDI_FIELDS
  * @return {string}
@@ -297,7 +305,7 @@ function getCell(row, key) {
   if (idx === undefined || idx < 0) return '';
   const val = row[idx];
   if (val === null || val === undefined) return '';
-  return toAscii(String(val).trim());
+  return toAscii(String(val).replace(/[\r\n]+/g, ' ').trim());
 }
 
 /**
