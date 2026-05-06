@@ -613,13 +613,17 @@ function generateEDI() {
   const now = new Date();
   const ts  = makeFileTimestamp(now);
 
-  // ── Order number seed: 3 + YYMMDDHHММ (10 digits, unique per minute) ──
+  // ── Order number seed: 3 + YYMMDDHHMMSS (12 digits, unique per second) ──
+  // Seconds are included so that two files generated within the same minute
+  // (e.g. two separate uploads in one batch run) get distinct order number
+  // ranges and cannot collide when imported by the receiving system.
   const yy = String(now.getFullYear()).slice(2);
   const mo = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   const hh = String(now.getHours()).padStart(2, '0');
   const mi = String(now.getMinutes()).padStart(2, '0');
-  const orderStart = parseInt(`3${yy}${mo}${dd}${hh}${mi}`, 10);
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const orderStart = parseInt(`3${yy}${mo}${dd}${hh}${mi}${ss}`, 10);
 
   // Reflect the computed seed in the read-only UI field
   document.getElementById('orderNumStart').value = orderStart;
@@ -644,7 +648,9 @@ function generateEDI() {
   // ── GROUP ROWS INTO ORDERS ─────────────────────────────────
   // Rows sharing the same subscriptionNum + deliveryCompany + deliveryName
   // are grouped as multiple D1 line items under a single order.
-  // Rows with no subscriptionNum each become their own separate order.
+  // Rows with no subscriptionNum are grouped by delivery name + company +
+  // address line 1 so that multi-title shipments to the same recipient
+  // are combined into a single order with multiple D1 lines.
 
   /** @type {Array<{key: string, ref: string, rows: Array, orderNum: number}>} */
   const orders   = [];
@@ -657,7 +663,7 @@ function generateEDI() {
 
     const groupKey = subNum
       ? `${subNum}||${company}||${name}`
-      : `__row_${Math.random()}`;    // unique key — each row is its own order
+      : `${name}||${company}||${getCell(row, 'addr1')}`;  // group by address when no sub ref
 
     if (!orderMap[groupKey]) {
       const order = {
@@ -1079,7 +1085,8 @@ function initOrderSeed() {
   const dd = String(n.getDate()).padStart(2, '0');
   const hh = String(n.getHours()).padStart(2, '0');
   const mi = String(n.getMinutes()).padStart(2, '0');
-  document.getElementById('orderNumStart').value = `3${yy}${mo}${dd}${hh}${mi}`;
+  const ss = String(n.getSeconds()).padStart(2, '0');
+  document.getElementById('orderNumStart').value = `3${yy}${mo}${dd}${hh}${mi}${ss}`;
 }
 
 // Run on page load

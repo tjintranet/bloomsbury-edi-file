@@ -199,7 +199,7 @@ The supported country list covers 46 territories. See `ISO_2_TO_3` in `script.js
 
 Rows that share the same **Order Ref**, **Delivery Company name** and **Delivery Name** are automatically grouped into a single order with multiple D1 line items. Each unique combination produces its own H1 / H2 / H3 block with sequential D1 records beneath it.
 
-Rows with no Order Ref value are each treated as a separate single-line order.
+Rows with no Order Ref value are grouped by **Delivery Name**, **Delivery Company name** and **Delivery address line 1**. Rows sharing all three of these values are combined into a single order with multiple D1 lines, in the same way as subscription-numbered rows. Only rows that are genuinely unique across all three fields produce their own single-line order.
 
 ---
 
@@ -214,7 +214,7 @@ The **File Settings** panel (collapsed by default) contains EDI batch configurat
 | Sender Code | `BLOO` | No | 4-character code written to `$$HDR` and `$$EOF`. |
 | Currency | `GBP` | Yes | 3-character ISO currency code written to each H1 record. |
 | Payment Terms | `FCA` | Yes | Incoterms code written to each H3 record. `FCA` = Free Carrier; `DAP` = Delivered at Place. |
-| Order Number Start | Auto | No | Timestamp-derived 10-digit seed. Regenerated on each Generate click. |
+| Order Number Start | Auto | No | Timestamp-derived 12-digit seed. Regenerated on each Generate click. |
 | Default Qty | `1` | Yes | Fallback quantity when the Quantity column is blank or zero. |
 
 ---
@@ -223,13 +223,13 @@ The **File Settings** panel (collapsed by default) contains EDI batch configurat
 
 Order numbers are derived from the date and time at the moment **Generate EDI File** is clicked, ensuring uniqueness across batches without any manual coordination.
 
-**Format:** `3` + `YY` + `MM` + `DD` + `HH` + `MM` (10 digits)
+**Format:** `3` + `YY` + `MM` + `DD` + `HH` + `MM` + `SS` (12 digits)
 
-**Example:** Clicking Generate at 14:23 on 24 February 2026 produces seed `3260224142`.
+**Example:** Clicking Generate at 14:23:07 on 24 February 2026 produces seed `326022414230**7**`.
 
-Orders within the same batch increment sequentially from that seed: `3260224142`, `3260224143`, `3260224144`, and so on.
+Orders within the same batch increment sequentially from that seed: `3260224142307`, `3260224142308`, `3260224142309`, and so on.
 
-Provided two batches are not generated within the same calendar minute, their order number ranges will never overlap.
+Because the seed includes seconds, two files generated within the same minute but at different seconds will have non-overlapping order number ranges, preventing import collisions when multiple files are submitted to the receiving system in the same batch run.
 
 ---
 
