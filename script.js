@@ -645,6 +645,25 @@ function generateEDI() {
   lines.push(`$$HDR${senderCode}  ${fileIdStr}   ${ts}`);
 
 
+  // ── FORWARD-FILL Order Ref ─────────────────────────────────
+  // The Order Ref column is typically populated only on the first
+  // row of a multi-title block, with subsequent rows left blank.
+  // We carry the last non-empty value forward in-memory so that
+  // every row in the block shares the same reference and groups
+  // correctly. rawData and the Source Data table are not mutated.
+  const subNumIdx = columnMap['subscriptionNum'];
+  let lastSubNum = '';
+  const filledData = rawData.map(row => {
+    const val = subNumIdx >= 0
+      ? toAscii(String(row[subNumIdx] ?? '').replace(/[\r\n]+/g, ' ').trim())
+      : '';
+    if (val) lastSubNum = val;
+    const filled = row.slice();                   // shallow copy — don't mutate rawData
+    if (subNumIdx >= 0) filled[subNumIdx] = lastSubNum;
+    return filled;
+  });
+
+
   // ── GROUP ROWS INTO ORDERS ─────────────────────────────────
   // Rows sharing the same subscriptionNum + deliveryCompany + deliveryName
   // are grouped as multiple D1 line items under a single order.
@@ -656,7 +675,7 @@ function generateEDI() {
   const orders   = [];
   const orderMap = {};
 
-  rawData.forEach(row => {
+  filledData.forEach(row => {
     const subNum  = getCell(row, 'subscriptionNum');
     const company = getCell(row, 'deliveryCompany');
     const name    = getCell(row, 'deliveryName');

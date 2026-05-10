@@ -201,6 +201,25 @@ Rows that share the same **Order Ref**, **Delivery Company name** and **Delivery
 
 Rows with no Order Ref value are grouped by **Delivery Name**, **Delivery Company name** and **Delivery address line 1**. Rows sharing all three of these values are combined into a single order with multiple D1 lines, in the same way as subscription-numbered rows. Only rows that are genuinely unique across all three fields produce their own single-line order.
 
+#### Order Ref forward-fill
+
+The Order Ref column is typically populated only on the **first row** of a multi-title block, with subsequent rows for the same order left blank — consistent with standard Excel data-entry practice. The application handles this automatically: before grouping, it performs a forward-fill pass that carries the last non-empty Order Ref value down through any blank cells beneath it.
+
+This means the following two layouts produce identical output:
+
+| Layout | Row | Order Ref | ISSN |
+|---|---|---|---|
+| **Explicit** (every row filled) | 1 | `SUB-001` | `9780000000001` |
+| | 2 | `SUB-001` | `9780000000002` |
+| | 3 | `SUB-001` | `9780000000003` |
+| **Sparse** (first row only) | 1 | `SUB-001` | `9780000000001` |
+| | 2 | *(blank)* | `9780000000002` |
+| | 3 | *(blank)* | `9780000000003` |
+
+The forward-fill is applied in memory at generation time only. The **Source Data** table always displays the spreadsheet exactly as uploaded — blank cells remain blank in the preview.
+
+If a new Order Ref value appears partway down the file, the fill resets to that new value from that row onwards, so a single file can contain multiple distinct orders with sparse Order Ref columns.
+
 ---
 
 ### File Settings Reference
@@ -605,6 +624,20 @@ The Royal Mail carrier code at H1 positions `[92:100]` is hardcoded as `'RMA    
 ```js
 + 'RMA     '   // [92:100] Royal Mail carrier code
 ```
+
+### Order Ref Forward-Fill Behaviour
+
+The forward-fill pass runs at the start of `generateEDI()`, before the row-grouping loop. It creates a shallow copy of `rawData` (`filledData`) with the Order Ref column patched in-place — `rawData` itself is never mutated, so the Source Data table is unaffected.
+
+The relevant constants and variables:
+
+| Identifier | Role |
+|---|---|
+| `subNumIdx` | Column index of the Order Ref field (from `columnMap`) |
+| `lastSubNum` | The most recently seen non-empty Order Ref value |
+| `filledData` | Shallow-copy of `rawData` with forward-filled Order Ref column |
+
+If `subNumIdx` is `-1` (the field is unmapped), the fill loop is skipped entirely and `filledData` is an unmodified copy of `rawData`. All subsequent grouping and record-building operates on `filledData`, not `rawData`.
 
 ### Updating the Supported Country Code List
 
