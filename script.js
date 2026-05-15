@@ -190,6 +190,73 @@ const ISO_2_TO_3 = {
 };
 
 /**
+ * Set of all valid ISO alpha-3 codes derived from ISO_2_TO_3.
+ * Used at generation time to validate the Delivery Country column.
+ * @type {Set<string>}
+ */
+const VALID_ALPHA3 = new Set(Object.values(ISO_2_TO_3));
+
+/**
+ * Per-country postcode validation rules.
+ * Each entry has:
+ *   pattern  {RegExp}  — the valid format for this country's postcodes
+ *   hint     {string}  — human-readable example shown in warning messages
+ *   suspect  {RegExp}  — pattern that suggests a common data-entry mistake
+ *                        (e.g. state prefix prepended to a US ZIP)
+ *   suspectMsg {string} — explanation shown when suspect pattern matches
+ *
+ * Countries not listed here receive only the generic suspect-pattern check
+ * (letters followed immediately by digits, which often indicates a region
+ * code has been prepended to the actual postcode).
+ *
+ * @type {Object.<string, {pattern: RegExp, hint: string, suspect: RegExp, suspectMsg: string}>}
+ */
+const POSTCODE_PATTERNS = {
+USA: {
+  pattern:    /^\d{5}$/,          // 5-digit only — ZIP+4 won't fit in 9 chars
+  hint:       '5-digit ZIP only, e.g. 52242 (ZIP+4 format is too long for the EDI field)',
+  suspect:    /^[A-Z]{2}\s/i,
+  suspectMsg: 'appears to contain a US state abbreviation prefix ...',
+  },
+  CAN: {
+    pattern:    /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i,
+    hint:       'Canadian postal code, e.g. K1A 0A9',
+    suspect:    /^[A-Z]{2}\s/i,
+    suspectMsg: 'appears to contain a province prefix — use the postal code only, e.g. K1A 0A9',
+  },
+  GBR: {
+    pattern:    /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i,
+    hint:       'UK postcode, e.g. SW1A 1AA or EC1A 1BB',
+    suspect:    /^\d/,
+    suspectMsg: 'UK postcodes begin with letters — check this is not a phone number or zip code',
+  },
+  AUS: {
+    pattern:    /^\d{4}$/,
+    hint:       '4-digit postcode, e.g. 2000',
+    suspect:    /[A-Z]/i,
+    suspectMsg: 'Australian postcodes are 4 digits only — remove any letters',
+  },
+  DEU: {
+    pattern:    /^\d{5}$/,
+    hint:       '5-digit PLZ, e.g. 10115',
+    suspect:    /[A-Z]/i,
+    suspectMsg: 'German postcodes are 5 digits only — remove any letters',
+  },
+  FRA: {
+    pattern:    /^\d{5}$/,
+    hint:       '5-digit code postal, e.g. 75001',
+    suspect:    /[A-Z]/i,
+    suspectMsg: 'French postcodes are 5 digits only — remove any letters',
+  },
+  NLD: {
+    pattern:    /^\d{4}\s?[A-Z]{2}$/i,
+    hint:       'Dutch postcode, e.g. 1234 AB',
+    suspect:    /^[A-Z]/i,
+    suspectMsg: 'Dutch postcodes begin with 4 digits — check for a city/province prefix',
+  },
+};
+
+/**
  * Converts an ISO country code to 3-letter alpha-3 format.
  * Accepts 2-letter (ISO 3166-1 alpha-2) or passes through 3-letter codes unchanged.
  *
@@ -577,6 +644,182 @@ function renderTable() {
 
 
 /* ============================================================
+   PRE-GENERATION VALIDATION
+   Runs over the grouped orders before any EDI records are built.
+
+   Two levels of feedback:
+     ERRORS   — block generation entirely (invalid country codes)
+     WARNINGS — non-blocking; file is generated but a yellow panel
+                lists every suspicious value so the user can decide
+                whether to proceed or fix the source data first.
+
+   ============================================================ */
+
+/**
+ * Validates country codes and postcode values across all orders.
+ *
+ * Country check  — hard error: any unrecognised alpha-3 code blocks generation.
+ * Postcode check — soft warning: suspicious values are flagged but do not block.
+ *
+ * @param  {Array<{ref: string, rows: Array}>} orders - Grouped order objects
+ * @return {{
+ *   countryErrors:  Array<{orderRef: string, value: string}>,
+ *   postcodeWarnings: Array<{orderRef: string, postcode: string, country: string, reason: string}>
+ * }}
+ */
+function validateOrders(orders) {
+  const countryErrors    = [];
+  const postcodeWarnings = [];
+
+  orders.forEach(order => {
+    const firstRow  = order.rows[0];
+    const orderRef  = order.ref || '(no ref)';
+    const rawCountry = getCell(firstRow, 'country');
+    const alpha3     = isoToAlpha3(rawCountry);
+    const postcode   = getCell(firstRow, 'postcode');
+
+    // ── Country validation (hard error) ─────────────────────────────────────
+    if (!rawCountry) {
+      countryErrors.push({ orderRef, value: '(blank)' });
+      return; // skip postcode check — country unknown
+    }
+    if (!VALID_ALPHA3.has(alpha3)) {
+      countryErrors.push({ orderRef, value: rawCountry });
+      return; // skip postcode check — country unknown
+    }
+
+    // ── Postcode validation (soft warning) ──────────────────────────────────
+    if (!postcode) {
+      postcodeWarnings.push({
+        orderRef,
+        postcode: '(blank)',
+        country:  alpha3,
+        reason:   'Post code is blank',
+      });
+      return;
+    }
+
+    const rule = POSTCODE_PATTERNS[alpha3];
+
+    if (rule) {
+      // Country has a known format rule — check suspect pattern first, then full format
+      if (rule.suspect.test(postcode)) {
+        postcodeWarnings.push({
+          orderRef,
+          postcode,
+          country: alpha3,
+          reason:  `"${postcode}" ${rule.suspectMsg}. Expected: ${rule.hint}`,
+        });
+      } else if (!rule.pattern.test(postcode.trim())) {
+        postcodeWarnings.push({
+          orderRef,
+          postcode,
+          country: alpha3,
+          reason:  `"${postcode}" does not match expected format for ${alpha3}. Expected: ${rule.hint}`,
+        });
+      }
+    } else {
+      // Generic check for all other countries:
+      // Flag if the value looks like "XX 12345" — letters then digits, typical of a
+      // region/state code being prepended to the actual postcode.
+      if (/^[A-Z]{2}\s+\S/i.test(postcode)) {
+        postcodeWarnings.push({
+          orderRef,
+          postcode,
+          country: alpha3,
+          reason:  `"${postcode}" may contain a region or state prefix before the postcode`,
+        });
+      }
+      // Also flag if value is longer than 9 chars (will be silently truncated in EDI)
+      if (postcode.length > 9) {
+        postcodeWarnings.push({
+          orderRef,
+          postcode,
+          country: alpha3,
+          reason:  `"${postcode}" is ${postcode.length} characters — the EDI postcode field is 9 characters; value will be truncated`,
+        });
+      }
+    }
+  });
+
+  return { countryErrors, postcodeWarnings };
+}
+
+/**
+ * Renders the country-error abort panel (red) into the upload message area.
+ * Mirrors the style of the column-mismatch error panel.
+ *
+ * @param {Array<{orderRef: string, value: string}>} errors
+ */
+function showCountryErrorPanel(errors) {
+  const plural = errors.length !== 1;
+  const rows = errors.map(e => {
+    const ref = e.orderRef.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const val = e.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<li class="col-error-item">Order Ref <strong>${ref}</strong> — unrecognised country code: <code>${val}</code></li>`;
+  }).join('');
+
+  document.getElementById('uploadMsg').innerHTML = `
+    <div class="message error col-error-box" style="margin-top:10px">
+      <div class="col-error-top">
+        <i class="fa-solid fa-triangle-exclamation col-error-icon"></i>
+        <div class="col-error-text">
+          <p class="col-error-title">Invalid country ${plural ? 'codes' : 'code'} — generation aborted</p>
+          <p class="col-error-desc">
+            ${errors.length} order${plural ? 's' : ''} contain${plural ? '' : 's'} an unrecognised Delivery Country value.
+            Accepted formats are ISO 3166-1 alpha-2 (e.g. <strong>US</strong>) or alpha-3 (e.g. <strong>USA</strong>).
+            See the Country Codes sheet in <strong>order_file.xlsx</strong> for the supported list.
+          </p>
+        </div>
+      </div>
+      <div class="col-error-divider"></div>
+      <div class="col-error-list-wrap">
+        <div class="col-error-list-label">${errors.length} ${plural ? 'issues' : 'issue'} found</div>
+        <ul class="col-error-list">${rows}</ul>
+      </div>
+    </div>`;
+}
+
+/**
+ * Renders the postcode warning panel (yellow) below the generate button.
+ * Non-blocking — the EDI file has already been generated when this is shown.
+ *
+ * @param {Array<{orderRef: string, postcode: string, country: string, reason: string}>} warnings
+ */
+function showPostcodeWarningPanel(warnings) {
+  const plural = warnings.length !== 1;
+  const rows = warnings.map(w => {
+    const ref  = w.orderRef.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const reason = w.reason.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<li class="col-error-item">Order Ref <strong>${ref}</strong> (${w.country}) — ${reason}</li>`;
+  }).join('');
+
+  // Insert warning panel after the upload message, before the stats bar
+  const container = document.getElementById('uploadMsg');
+  const existing  = container.innerHTML;
+
+  container.innerHTML = existing + `
+    <div class="message warn col-error-box" style="margin-top:10px">
+      <div class="col-error-top">
+        <i class="fa-solid fa-triangle-exclamation col-error-icon"></i>
+        <div class="col-error-text">
+          <p class="col-error-title">Postcode ${plural ? 'warnings' : 'warning'} — file generated but please review</p>
+          <p class="col-error-desc">
+            ${warnings.length} order${plural ? 's have' : ' has'} a postcode value that may be incorrect.
+            The EDI file has been created — check the values below before submitting to Pace.
+          </p>
+        </div>
+      </div>
+      <div class="col-error-divider"></div>
+      <div class="col-error-list-wrap">
+        <div class="col-error-list-label">${warnings.length} ${plural ? 'warnings' : 'warning'}</div>
+        <ul class="col-error-list">${rows}</ul>
+      </div>
+    </div>`;
+}
+
+
+/* ============================================================
    EDI FILE GENERATION
    The core function. Reads settings from the UI, groups rows
    into orders, and constructs each fixed-width record type.
@@ -697,6 +940,19 @@ function generateEDI() {
 
     orderMap[groupKey].rows.push(row);
   });
+
+
+  // ── PRE-GENERATION VALIDATION ─────────────────────────────
+  // Run country and postcode checks across all grouped orders.
+  // Country errors abort generation entirely (hard stop).
+  // Postcode issues are collected as warnings and shown after
+  // generation completes — they do not block the download.
+  const { countryErrors, postcodeWarnings } = validateOrders(orders);
+
+  if (countryErrors.length) {
+    showCountryErrorPanel(countryErrors);
+    return;
+  }
 
 
   // ── BUILD RECORDS PER ORDER ────────────────────────────────
@@ -875,6 +1131,14 @@ function generateEDI() {
   renderPreview(lines);
   document.getElementById('clearBtn').style.display    = '';
   document.getElementById('downloadBtn').style.display = '';
+
+  // ── POSTCODE WARNINGS ──────────────────────────────────────
+  // Show a non-blocking yellow panel if any orders had suspicious
+  // postcode values. The file is ready to download — this is a
+  // prompt to review, not a blocker.
+  if (postcodeWarnings.length) {
+    showPostcodeWarningPanel(postcodeWarnings);
+  }
 
   // Switch to the EDI Preview tab automatically
   switchTab('preview', document.querySelectorAll('.tab-btn')[1]);

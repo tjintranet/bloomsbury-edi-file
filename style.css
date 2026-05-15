@@ -606,6 +606,12 @@ select:focus {
   color:      var(--error);
 }
 
+.message.warn {
+  background: var(--warn-bg, #fffbeb);
+  border-color: var(--warn, #d97706);
+  color: var(--warn-text, #92400e);
+}
+
 .message.info {
   background: rgba(74, 158, 255, 0.1);
   border:     1px solid rgba(74, 158, 255, 0.3);
