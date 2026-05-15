@@ -212,11 +212,11 @@ const VALID_ALPHA3 = new Set(Object.values(ISO_2_TO_3));
  * @type {Object.<string, {pattern: RegExp, hint: string, suspect: RegExp, suspectMsg: string}>}
  */
 const POSTCODE_PATTERNS = {
-USA: {
-  pattern:    /^\d{5}$/,          // 5-digit only — ZIP+4 won't fit in 9 chars
-  hint:       '5-digit ZIP only, e.g. 52242 (ZIP+4 format is too long for the EDI field)',
-  suspect:    /^[A-Z]{2}\s/i,
-  suspectMsg: 'appears to contain a US state abbreviation prefix ...',
+  USA: {
+    pattern:    /^\d{5}$/,
+    hint:       '5-digit ZIP only, e.g. 52242 (ZIP+4 format, e.g. 52242-1166, is too long for the 9-character EDI field — use the 5-digit ZIP only)',
+    suspect:    /^[A-Z]{2}\s|^\d{5}-\d/i,
+    suspectMsg: 'appears to contain a US state abbreviation prefix (e.g. "IA 52242") or ZIP+4 suffix (e.g. "52242-1166") — use the 5-digit ZIP only (e.g. "52242")',
   },
   CAN: {
     pattern:    /^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i,
@@ -269,6 +269,37 @@ function isoToAlpha3(code) {
   if (code.length === 3) return code;
   if (code.length === 2) return ISO_2_TO_3[code] || (code + ' ');
   return code.substring(0, 3);
+}
+
+/**
+ * Returns a 2-letter ISO alpha-2 country code right-padded to 3 characters
+ * with a trailing space, for use in the H2 record country field [335:338].
+ *
+ * Pace MIS uses alpha-2 codes in a 3-char field (e.g. 'US ', 'GB '), NOT
+ * alpha-3 (e.g. 'USA', 'GBR'). Using alpha-3 causes a Country ClassCastException
+ * on import because Pace cannot find the code in its internal country table.
+ *
+ * Accepts either alpha-2 (e.g. 'US') or alpha-3 (e.g. 'USA') input.
+ * Alpha-3 is reverse-looked-up to alpha-2 before padding.
+ *
+ * @param  {string} code - Raw country code from the spreadsheet
+ * @return {string}        Alpha-2 code right-padded to exactly 3 characters
+ */
+function isoToAlpha2Padded(code) {
+  if (!code) return '   ';
+  const trimmed = code.trim().toUpperCase();
+
+  // Already alpha-2 — pad and return
+  if (trimmed.length === 2) return trimmed.padEnd(3, ' ');
+
+  // Alpha-3 — reverse-lookup to alpha-2
+  if (trimmed.length === 3) {
+    const alpha2 = Object.keys(ISO_2_TO_3).find(k => ISO_2_TO_3[k] === trimmed);
+    if (alpha2) return alpha2.padEnd(3, ' ');
+  }
+
+  // Unrecognised — return truncated/padded (will be caught by validateOrders)
+  return trimmed.substring(0, 3).padEnd(3, ' ');
 }
 
 
@@ -1026,7 +1057,9 @@ function generateEDI() {
     //   [244:294] email address        (50)
     //   [294:326] town / city          (32) — from 'Town/City' column
     //   [326:335] post code             (9)
-    //   [335:338] country code (alpha-3)(3)
+    //   [335:338] country code (alpha-2, space-padded to 3)(3)
+    //             NOTE: Pace MIS requires alpha-2 (e.g. 'US ', 'GB '), NOT alpha-3.
+    //             Using alpha-3 ('USA', 'GBR') causes a Country ClassCastException on import.
     //   [338:358] telephone            (20)
 
     const subCode = order.ref
@@ -1043,7 +1076,7 @@ function generateEDI() {
       + pad(getCell(firstRow, 'email'), 50)                          // [244:294]
       + pad(getCell(firstRow, 'townCity'), 32)                       // [294:326]
       + pad(getCell(firstRow, 'postcode'), 9)                        // [326:335]
-      + pad(isoToAlpha3(getCell(firstRow, 'country')), 3)            // [335:338]
+      + isoToAlpha2Padded(getCell(firstRow, 'country'))              // [335:338]
       + pad(getCell(firstRow, 'phone'), 20);                         // [338:358]
 
     lines.push(h2.substring(0, 358).padEnd(358));
