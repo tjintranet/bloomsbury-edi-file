@@ -182,7 +182,7 @@ const ISO_2_TO_3 = {
   CZ: 'CZE', DE: 'DEU', DK: 'DNK', EG: 'EGY', ES: 'ESP',
   FI: 'FIN', FR: 'FRA', GB: 'GBR', GR: 'GRC', HK: 'HKG',
   HU: 'HUN', ID: 'IDN', IE: 'IRL', IL: 'ISR', IN: 'IND',
-  IT: 'ITA', JP: 'JPN', KE: 'KEN', KR: 'KOR', MX: 'MEX',
+  IT: 'ITA', JP: 'JPN', KE: 'KEN', KR: 'KOR', MT: 'MLT', MX: 'MEX',
   MY: 'MYS', NG: 'NGA', NL: 'NLD', NO: 'NOR', NZ: 'NZL',
   PH: 'PHL', PL: 'POL', PT: 'PRT', RO: 'ROU', SE: 'SWE',
   SG: 'SGP', TH: 'THA', TR: 'TUR', TW: 'TWN', US: 'USA',
