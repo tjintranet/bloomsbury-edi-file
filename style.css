@@ -607,9 +607,9 @@ select:focus {
 }
 
 .message.warn {
-  background: var(--warn-bg, #fffbeb);
-  border-color: var(--warn, #d97706);
-  color: var(--warn-text, #92400e);
+  background:   rgba(240, 165, 0, 0.10);
+  border:       1px solid rgba(240, 165, 0, 0.35);
+  color:        #fcd34d;
 }
 
 .message.info {
@@ -789,4 +789,33 @@ select:focus {
 
 .btn-template i {
   font-size: 0.85rem;
+}
+/* ============================================================
+   WARNING PANEL OVERRIDES
+   The col-error-* classes default to red (error) styling.
+   When they appear inside a .message.warn box the colours
+   are overridden to amber so warnings are clearly distinct
+   from hard errors and readable against the dark background.
+   ============================================================ */
+
+.message.warn .col-error-icon {
+  color: #fbbf24;
+}
+
+.message.warn .col-error-title {
+  color: #fcd34d;
+}
+
+.message.warn .col-error-divider {
+  background: rgba(251, 191, 36, 0.25);
+}
+
+.message.warn .col-error-item {
+  color:       #fde68a;
+  background:  rgba(251, 191, 36, 0.08);
+  border-left: 2px solid rgba(251, 191, 36, 0.45);
+}
+
+.message.warn .col-error-item strong {
+  color: #fef3c7;
 }
