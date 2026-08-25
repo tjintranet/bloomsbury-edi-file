@@ -182,7 +182,7 @@ const ISO_2_TO_3 = {
   CZ: 'CZE', DE: 'DEU', DK: 'DNK', EG: 'EGY', ES: 'ESP',
   FI: 'FIN', FR: 'FRA', GB: 'GBR', GR: 'GRC', HK: 'HKG',
   HU: 'HUN', ID: 'IDN', IE: 'IRL', IL: 'ISR', IN: 'IND',
-  IT: 'ITA', JP: 'JPN', KE: 'KEN', KR: 'KOR', MX: 'MEX',
+  IT: 'ITA', JP: 'JPN', KE: 'KEN', KR: 'KOR', MT: 'MLT', MX: 'MEX',
   MY: 'MYS', NG: 'NGA', NL: 'NLD', NO: 'NOR', NZ: 'NZL',
   PH: 'PHL', PL: 'POL', PT: 'PRT', RO: 'ROU', SE: 'SWE',
   SG: 'SGP', TH: 'THA', TR: 'TUR', TW: 'TWN', US: 'USA',
@@ -493,13 +493,7 @@ function processFile(file) {
       if (data.length < 4) throw new Error('No data rows found in the file.');
 
       headers = fileHeaders;
-      // Attach the 1-based spreadsheet row number to each row array as a
-      // non-enumerable property so validation can report exact row locations
-      // without the number appearing as a table cell. Row 1 = title banner,
-      // row 2 = group labels, row 3 = headers, so data starts at row 4.
-      rawData = data.slice(3)
-        .map((row, i) => { row._rowNum = i + 4; return row; })
-        .filter(row => row.some(c => c !== null && c !== ''));
+      rawData = data.slice(3).filter(row => row.some(c => c !== null && c !== ''));
 
       showMessage(
         'uploadMsg',
@@ -698,10 +692,10 @@ function renderTable() {
  * Country check  — hard error: any unrecognised alpha-3 code blocks generation.
  * Postcode check — soft warning: suspicious values are flagged but do not block.
  *
- * @param  {Array<{ref: string, rows: Array, firstRowNum: number}>} orders - Grouped order objects
+ * @param  {Array<{ref: string, rows: Array}>} orders - Grouped order objects
  * @return {{
- *   countryErrors:  Array<{orderRef: string, value: string, rowNum: number}>,
- *   postcodeWarnings: Array<{orderRef: string, postcode: string, country: string, reason: string, rowNum: number}>
+ *   countryErrors:  Array<{orderRef: string, value: string}>,
+ *   postcodeWarnings: Array<{orderRef: string, postcode: string, country: string, reason: string}>
  * }}
  */
 function validateOrders(orders) {
@@ -711,18 +705,17 @@ function validateOrders(orders) {
   orders.forEach(order => {
     const firstRow  = order.rows[0];
     const orderRef  = order.ref || '(no ref)';
-    const rowNum    = order.firstRowNum;
     const rawCountry = getCell(firstRow, 'country');
     const alpha3     = isoToAlpha3(rawCountry);
     const postcode   = getCell(firstRow, 'postcode');
 
     // ── Country validation (hard error) ─────────────────────────────────────
     if (!rawCountry) {
-      countryErrors.push({ orderRef, value: '(blank)', rowNum });
+      countryErrors.push({ orderRef, value: '(blank)' });
       return; // skip postcode check — country unknown
     }
     if (!VALID_ALPHA3.has(alpha3)) {
-      countryErrors.push({ orderRef, value: rawCountry, rowNum });
+      countryErrors.push({ orderRef, value: rawCountry });
       return; // skip postcode check — country unknown
     }
 
@@ -733,7 +726,6 @@ function validateOrders(orders) {
         postcode: '(blank)',
         country:  alpha3,
         reason:   'Post code is blank',
-        rowNum,
       });
       return;
     }
@@ -748,7 +740,6 @@ function validateOrders(orders) {
           postcode,
           country: alpha3,
           reason:  `"${postcode}" ${rule.suspectMsg}. Expected: ${rule.hint}`,
-          rowNum,
         });
       } else if (!rule.pattern.test(postcode.trim())) {
         postcodeWarnings.push({
@@ -756,7 +747,6 @@ function validateOrders(orders) {
           postcode,
           country: alpha3,
           reason:  `"${postcode}" does not match expected format for ${alpha3}. Expected: ${rule.hint}`,
-          rowNum,
         });
       }
     } else {
@@ -769,7 +759,6 @@ function validateOrders(orders) {
           postcode,
           country: alpha3,
           reason:  `"${postcode}" may contain a region or state prefix before the postcode`,
-          rowNum,
         });
       }
       // Also flag if value is longer than 9 chars (will be silently truncated in EDI)
@@ -779,7 +768,6 @@ function validateOrders(orders) {
           postcode,
           country: alpha3,
           reason:  `"${postcode}" is ${postcode.length} characters — the EDI postcode field is 9 characters; value will be truncated`,
-          rowNum,
         });
       }
     }
@@ -792,14 +780,14 @@ function validateOrders(orders) {
  * Renders the country-error abort panel (red) into the upload message area.
  * Mirrors the style of the column-mismatch error panel.
  *
- * @param {Array<{orderRef: string, value: string, rowNum: number}>} errors
+ * @param {Array<{orderRef: string, value: string}>} errors
  */
 function showCountryErrorPanel(errors) {
   const plural = errors.length !== 1;
   const rows = errors.map(e => {
     const ref = e.orderRef.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const val = e.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return `<li class="col-error-item">Row ${e.rowNum} — Order Ref <strong>${ref}</strong> — unrecognised country code: <code>${val}</code></li>`;
+    return `<li class="col-error-item">Order Ref <strong>${ref}</strong> — unrecognised country code: <code>${val}</code></li>`;
   }).join('');
 
   document.getElementById('uploadMsg').innerHTML = `
@@ -827,14 +815,14 @@ function showCountryErrorPanel(errors) {
  * Renders the postcode warning panel (yellow) below the generate button.
  * Non-blocking — the EDI file has already been generated when this is shown.
  *
- * @param {Array<{orderRef: string, postcode: string, country: string, reason: string, rowNum: number}>} warnings
+ * @param {Array<{orderRef: string, postcode: string, country: string, reason: string}>} warnings
  */
 function showPostcodeWarningPanel(warnings) {
   const plural = warnings.length !== 1;
   const rows = warnings.map(w => {
-    const ref    = w.orderRef.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const ref  = w.orderRef.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const reason = w.reason.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    return `<li class="col-error-item">Row ${w.rowNum} — Order Ref <strong>${ref}</strong> (${w.country}) — ${reason}</li>`;
+    return `<li class="col-error-item">Order Ref <strong>${ref}</strong> (${w.country}) — ${reason}</li>`;
   }).join('');
 
   // Insert warning panel after the upload message, before the stats bar
@@ -946,7 +934,6 @@ function generateEDI() {
     if (val) lastSubNum = val;
     const filled = row.slice();                   // shallow copy — don't mutate rawData
     if (subNumIdx >= 0) filled[subNumIdx] = lastSubNum;
-    filled._rowNum = row._rowNum;                 // carry the spreadsheet row number forward
     return filled;
   });
 
@@ -973,11 +960,10 @@ function generateEDI() {
 
     if (!orderMap[groupKey]) {
       const order = {
-        key:          groupKey,
-        ref:          subNum,
-        rows:         [],
-        orderNum:     orderStart + orders.length,
-        firstRowNum:  row._rowNum,   // spreadsheet row of the first row in this order
+        key:      groupKey,
+        ref:      subNum,
+        rows:     [],
+        orderNum: orderStart + orders.length,
       };
       orderMap[groupKey] = order;
       orders.push(order);
